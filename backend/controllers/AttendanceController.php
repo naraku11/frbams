@@ -56,7 +56,7 @@ class AttendanceController
         }
 
         // Look up device id (optional)
-        $devStmt = $pdo->prepare('SELECT id FROM devices WHERE uuid = ? LIMIT 1');
+        $devStmt = $pdo->prepare('SELECT id FROM devices WHERE device_uuid = ? LIMIT 1');
         $devStmt->execute([$deviceUuid]);
         $device   = $devStmt->fetch();
         $deviceId = $device ? (int) $device['id'] : null;

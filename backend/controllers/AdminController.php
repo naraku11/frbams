@@ -178,12 +178,12 @@ class AdminController
                     lr.date_from AS dateFrom,
                     lr.date_to   AS dateTo,
                     lr.reason, lr.type, lr.status,
-                    lr.created_at AS submittedAt
+                    lr.submitted_at AS submittedAt
              FROM   leave_requests lr
              JOIN   students s ON s.id = lr.student_id
              JOIN   grades   g ON g.id = s.grade_id
              WHERE  lr.status = ?
-             ORDER  BY lr.created_at DESC
+             ORDER  BY lr.submitted_at DESC
              LIMIT  100"
         );
         $stmt->execute([$status]);
