@@ -1,0 +1,10 @@
+Options -Indexes
+
+RewriteEngine On
+
+# Let real files through (JS, CSS, images, etc.)
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Redirect everything else to index.html for React Router
+RewriteRule ^ index.html [QSA,L]

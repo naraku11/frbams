@@ -1,6 +1,7 @@
 Options -Indexes
 
 RewriteEngine On
+RewriteBase /api/
 
 # Allow direct file access (for future static assets)
 RewriteCond %{REQUEST_FILENAME} -f
