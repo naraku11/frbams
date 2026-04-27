@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "FRBAMS",
+    "slug": "frbams-student",
+    "version": "1.0.0",
+    "scheme": "frbams",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#0E0F0C"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.frbams.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "FRBAMS uses your camera to verify your identity when checking in.",
+        "NSLocationWhenInUseUsageDescription": "FRBAMS checks your location to confirm you are on campus before recording attendance.",
+        "NSFaceIDUsageDescription": "FRBAMS uses Face ID for secure check-in."
+      }
+    },
+    "android": {
+      "package": "com.frbams.app",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        { "cameraPermission": "FRBAMS uses your camera to verify your identity when checking in." }
+      ],
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "FRBAMS checks your location to confirm you are on campus." }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
