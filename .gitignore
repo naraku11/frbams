@@ -1,8 +1,20 @@
 node_modules/
+
+# Frontend
 frontend/dist/
 frontend/node_modules/
-mobile/node_modules/
+
+# Backend
 backend/.env
+
+# Mobile
+mobile/
+
+# Database
+database/
+
+# OS / Editor
 *.log
 .DS_Store
 Thumbs.db
+.vscode/settings.json

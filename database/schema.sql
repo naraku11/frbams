@@ -242,6 +242,28 @@ CREATE TABLE IF NOT EXISTS `geofence_zones` (
   CONSTRAINT `fk_geofence_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Registered kiosk / mobile devices (must precede attendance_records FK)
+CREATE TABLE IF NOT EXISTS `devices` (
+  `id`            INT UNSIGNED       NOT NULL AUTO_INCREMENT,
+  `school_id`     SMALLINT UNSIGNED  NOT NULL,
+  `device_uuid`   VARCHAR(36)        NOT NULL,
+  `type`          ENUM('kiosk','mobile_ios','mobile_android','web')
+                                     NOT NULL DEFAULT 'kiosk',
+  `label`         VARCHAR(80)        DEFAULT NULL,
+  `camera_id`     SMALLINT UNSIGNED  DEFAULT NULL,
+  `os_version`    VARCHAR(40)        DEFAULT NULL,
+  `app_version`   VARCHAR(20)        DEFAULT NULL,
+  `is_active`     TINYINT(1)         NOT NULL DEFAULT 1,
+  `last_online_at` TIMESTAMP         DEFAULT NULL,
+  `last_sync_at`  TIMESTAMP          DEFAULT NULL,
+  `created_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_device_uuid` (`device_uuid`),
+  KEY `idx_device_school` (`school_id`),
+  CONSTRAINT `fk_device_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_device_camera` FOREIGN KEY (`camera_id`) REFERENCES `cameras` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =============================================================================
 -- SECTION 5 · ACADEMIC: DEPARTMENTS, COURSES, SCHEDULES, SESSIONS
 -- =============================================================================
@@ -472,27 +494,6 @@ CREATE TABLE IF NOT EXISTS `notifications` (
 -- =============================================================================
 -- SECTION 9 · DEVICES & OFFLINE SYNC
 -- =============================================================================
-
-CREATE TABLE IF NOT EXISTS `devices` (
-  `id`            INT UNSIGNED       NOT NULL AUTO_INCREMENT,
-  `school_id`     SMALLINT UNSIGNED  NOT NULL,
-  `device_uuid`   VARCHAR(36)        NOT NULL,        -- UUID v4
-  `type`          ENUM('kiosk','mobile_ios','mobile_android','web')
-                                     NOT NULL DEFAULT 'kiosk',
-  `label`         VARCHAR(80)        DEFAULT NULL,    -- "Kiosk · Main A1"
-  `camera_id`     SMALLINT UNSIGNED  DEFAULT NULL,   -- kiosk's assigned camera
-  `os_version`    VARCHAR(40)        DEFAULT NULL,
-  `app_version`   VARCHAR(20)        DEFAULT NULL,
-  `is_active`     TINYINT(1)         NOT NULL DEFAULT 1,
-  `last_online_at` TIMESTAMP         DEFAULT NULL,
-  `last_sync_at`  TIMESTAMP          DEFAULT NULL,
-  `created_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_device_uuid` (`device_uuid`),
-  KEY `idx_device_school` (`school_id`),
-  CONSTRAINT `fk_device_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_device_camera` FOREIGN KEY (`camera_id`) REFERENCES `cameras` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Offline-captured check-ins waiting to be synced to attendance_records
 CREATE TABLE IF NOT EXISTS `offline_queue` (
