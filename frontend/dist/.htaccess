@@ -1,10 +1,13 @@
-Options -Indexes
+Options -Indexes +FollowSymLinks
 
 RewriteEngine On
 
-# Let real files through (JS, CSS, images, etc.)
+# Let real files pass through (JS, CSS, images, fonts)
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 
-# Redirect everything else to index.html for React Router
-RewriteRule ^ index.html [QSA,L]
+# Let the /api/ subdirectory handle its own requests
+RewriteRule ^api(/|$) - [L]
+
+# SPA: send everything else to index.html
+RewriteRule ^ /index.html [QSA,L]

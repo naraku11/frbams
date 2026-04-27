@@ -1,9 +1,14 @@
-Options -Indexes
+Options -Indexes +FollowSymLinks
+
+# Block direct access to sensitive files
+<FilesMatch "^(\.env|\.env\.example|composer\.json|composer\.lock)$">
+    Require all denied
+</FilesMatch>
 
 RewriteEngine On
 RewriteBase /api/
 
-# Allow direct file access (for future static assets)
+# Let real files through
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 

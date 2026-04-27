@@ -18,19 +18,22 @@ loadEnv(__DIR__ . '/.env');
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
-$origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
-$allowed = array_filter([
-    env('FRONTEND_URL'),
-    env('APP_URL'),
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:8081',  // Expo dev
-]);
+$origin  = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
+$allowed = array_filter(array_map(
+    fn($u) => rtrim((string) $u, '/'),
+    [
+        env('FRONTEND_URL'),
+        env('APP_URL'),
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:8081',  // Expo dev
+    ]
+));
 
 if (in_array($origin, $allowed, true) || env('APP_ENV') === 'development') {
     header("Access-Control-Allow-Origin: {$origin}");
 } else {
-    header('Access-Control-Allow-Origin: ' . (env('FRONTEND_URL') ?: '*'));
+    header('Access-Control-Allow-Origin: ' . (rtrim(env('FRONTEND_URL'), '/') ?: '*'));
 }
 
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
