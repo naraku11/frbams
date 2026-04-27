@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AttendanceRecord, CourseSession, LeaveRequest, Student } from './types';
 
 // Set this to your Hostinger domain once deployed
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://your-domain.com/api';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://linen-salmon-143266.hostingersite.com/api';
 
 async function getAuthToken(): Promise<string | null> {
   return AsyncStorage.getItem('auth_token');

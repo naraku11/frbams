@@ -166,10 +166,10 @@ class StudentController
 
         $stmt = db()->prepare(
             'SELECT id, date_from AS dateFrom, date_to AS dateTo,
-                    reason, type, status, created_at AS submittedAt
+                    reason, type, status, submitted_at AS submittedAt
              FROM   leave_requests
              WHERE  student_id = ?
-             ORDER  BY created_at DESC
+             ORDER  BY submitted_at DESC
              LIMIT  50'
         );
         $stmt->execute([$id]);
@@ -190,11 +190,17 @@ class StudentController
     {
         $payload  = require_auth();
         $id       = (int) $payload['sub'];
+        $schoolId = (int) $payload['school_id'];
         $body     = body();
         $dateFrom = (string) required_field($body, 'dateFrom');
         $dateTo   = (string) required_field($body, 'dateTo');
         $reason   = (string) required_field($body, 'reason');
-        $type     = isset($body['type']) ? (string) $body['type'] : 'Personal';
+
+        // Normalise type to match ENUM ('medical','family','school_event','personal','other')
+        $typeMap  = ['medical' => 'medical', 'family' => 'family', 'school_event' => 'school_event',
+                     'personal' => 'personal', 'other' => 'other'];
+        $typeRaw  = strtolower(str_replace(' ', '_', (string) ($body['type'] ?? 'personal')));
+        $type     = $typeMap[$typeRaw] ?? 'other';
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
             error_out('Invalid date format. Use YYYY-MM-DD.');
@@ -202,10 +208,10 @@ class StudentController
 
         $pdo  = db();
         $stmt = $pdo->prepare(
-            'INSERT INTO leave_requests (student_id, date_from, date_to, reason, type, status)
-             VALUES (?, ?, ?, ?, ?, "pending")'
+            'INSERT INTO leave_requests (school_id, student_id, date_from, date_to, reason, type, status)
+             VALUES (?, ?, ?, ?, ?, ?, "pending")'
         );
-        $stmt->execute([$id, $dateFrom, $dateTo, $reason, $type]);
+        $stmt->execute([$schoolId, $id, $dateFrom, $dateTo, $reason, $type]);
         $newId = (int) $pdo->lastInsertId();
 
         json_out([

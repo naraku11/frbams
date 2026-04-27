@@ -7,9 +7,10 @@ class AttendanceController
     /** POST /attendance/check-in */
     public static function checkIn(): void
     {
-        $payload = require_auth();
-        $sid     = (int) $payload['sub'];
-        $body    = body();
+        $payload  = require_auth();
+        $sid      = (int) $payload['sub'];
+        $schoolId = (int) $payload['school_id'];
+        $body     = body();
 
         $method      = (string) required_field($body, 'method');
         $deviceUuid  = (string) required_field($body, 'deviceUuid');
@@ -19,17 +20,16 @@ class AttendanceController
             error_out('method must be "face" or "pin"');
         }
 
-        $confidence   = isset($body['confidence'])    ? (float)  $body['confidence']    : null;
-        $lat          = isset($body['locationLat'])   ? (float)  $body['locationLat']   : null;
-        $lng          = isset($body['locationLng'])   ? (float)  $body['locationLng']   : null;
-        $accuracyM    = isset($body['locationAccuracyM']) ? (float) $body['locationAccuracyM'] : null;
-        $geofenceId   = isset($body['geofenceId'])   ? (int)    $body['geofenceId']    : null;
-        $distanceM    = isset($body['distanceM'])    ? (float)  $body['distanceM']     : null;
+        $confidence   = isset($body['confidence'])        ? (float) $body['confidence']        : null;
+        $lat          = isset($body['locationLat'])        ? (float) $body['locationLat']        : null;
+        $lng          = isset($body['locationLng'])        ? (float) $body['locationLng']        : null;
+        $geofenceId   = isset($body['geofenceId'])         ? (int)   $body['geofenceId']         : null;
+        $distanceM    = isset($body['distanceM'])          ? (float) $body['distanceM']          : null;
 
-        $pdo  = db();
+        $pdo   = db();
         $today = date('Y-m-d');
 
-        // Resolve current session
+        // Resolve current session for this student
         $sessionStmt = $pdo->prepare(
             "SELECT cs.id
              FROM   course_sessions    cs
@@ -40,10 +40,10 @@ class AttendanceController
              LIMIT  1"
         );
         $sessionStmt->execute([$sid, $today]);
-        $session = $sessionStmt->fetch();
+        $session   = $sessionStmt->fetch();
         $sessionId = $session ? (int) $session['id'] : null;
 
-        // Prevent duplicate check-in for the same session/day
+        // Prevent duplicate check-in for same student/day/session
         $dupStmt = $pdo->prepare(
             'SELECT id FROM attendance_records
              WHERE student_id = ? AND record_date = ?
@@ -55,7 +55,7 @@ class AttendanceController
             error_out('Already checked in for this session', 409);
         }
 
-        // Determine device id
+        // Look up device id (optional)
         $devStmt = $pdo->prepare('SELECT id FROM devices WHERE uuid = ? LIMIT 1');
         $devStmt->execute([$deviceUuid]);
         $device   = $devStmt->fetch();
@@ -77,13 +77,13 @@ class AttendanceController
 
         $insert = $pdo->prepare(
             'INSERT INTO attendance_records
-               (student_id, session_id, record_date, check_in_time, status, method,
+               (school_id, student_id, session_id, record_date, check_in_time, status, method,
                 confidence, location_lat, location_lng, geofence_id, distance_m,
                 device_id, synced_at)
-             VALUES (?, ?, ?, TIME(?), ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
         );
         $insert->execute([
-            $sid, $sessionId, $today, $capturedAt,
+            $schoolId, $sid, $sessionId, $today, $capturedAt,
             $status, $method, $confidence, $lat, $lng,
             $geofenceId, $distanceM, $deviceId,
         ]);
@@ -98,9 +98,8 @@ class AttendanceController
         $sid     = (int) $payload['sub'];
         $body    = body();
 
-        $deviceUuid = (string) required_field($body, 'deviceUuid');
-        $lat        = isset($body['locationLat']) ? (float) $body['locationLat'] : null;
-        $lng        = isset($body['locationLng']) ? (float) $body['locationLng'] : null;
+        $lat = isset($body['locationLat']) ? (float) $body['locationLat'] : null;
+        $lng = isset($body['locationLng']) ? (float) $body['locationLng'] : null;
 
         $today = date('Y-m-d');
         $stmt  = db()->prepare(
@@ -117,20 +116,23 @@ class AttendanceController
 
         db()->prepare(
             'UPDATE attendance_records
-             SET check_out_time = TIME(NOW()), location_lat = COALESCE(?, location_lat), location_lng = COALESCE(?, location_lng)
+             SET check_out_time = NOW(),
+                 location_lat   = COALESCE(?, location_lat),
+                 location_lng   = COALESCE(?, location_lng)
              WHERE id = ?'
         )->execute([$lat, $lng, $row['id']]);
 
         json_out(['recordId' => (int) $row['id']]);
     }
 
-    /** POST /attendance/sync — bulk offline queue sync */
+    /** POST /attendance/sync — bulk offline queue sync from mobile */
     public static function sync(): void
     {
-        $payload = require_auth();
-        $sid     = (int) $payload['sub'];
-        $body    = body();
-        $events  = $body['events'] ?? [];
+        $payload  = require_auth();
+        $sid      = (int) $payload['sub'];
+        $schoolId = (int) $payload['school_id'];
+        $body     = body();
+        $events   = $body['events'] ?? [];
 
         if (!is_array($events)) {
             error_out('events must be an array');
@@ -142,43 +144,34 @@ class AttendanceController
         foreach ($events as $ev) {
             $method     = $ev['method']      ?? 'face';
             $capturedAt = $ev['capturedAt']  ?? '';
-            $deviceUuid = $ev['deviceUuid']  ?? '';
-            $localId    = $ev['localId']     ?? null;
-            $confidence = isset($ev['confidence']) ? (float) $ev['confidence'] : null;
-            $lat        = isset($ev['locationLat']) ? (float) $ev['locationLat'] : null;
-            $lng        = isset($ev['locationLng']) ? (float) $ev['locationLng'] : null;
+            $confidence = isset($ev['confidence'])   ? (float) $ev['confidence']   : null;
+            $lat        = isset($ev['locationLat'])  ? (float) $ev['locationLat']  : null;
+            $lng        = isset($ev['locationLng'])  ? (float) $ev['locationLng']  : null;
 
-            if (!$capturedAt || !in_array($method, ['face','pin'], true)) {
+            if (!$capturedAt || !in_array($method, ['face', 'pin'], true)) {
                 $conflicts++;
                 continue;
             }
 
             $date = substr($capturedAt, 0, 10);
 
-            // Skip if already recorded for same day (simple dedup)
+            // Dedup: skip if already recorded for same student + day
             $dup = db()->prepare(
-                'SELECT id FROM offline_queue WHERE student_id = ? AND local_id = ? LIMIT 1'
+                'SELECT id FROM attendance_records WHERE student_id = ? AND record_date = ? LIMIT 1'
             );
-            $dup->execute([$sid, $localId]);
+            $dup->execute([$sid, $date]);
             if ($dup->fetch()) {
-                $synced++; // already synced
+                $synced++;
                 continue;
             }
 
             try {
                 db()->prepare(
-                    'INSERT INTO offline_queue
-                       (student_id, local_id, method, confidence, location_lat, location_lng,
-                        captured_at, synced_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW())'
-                )->execute([$sid, $localId, $method, $confidence, $lat, $lng, $capturedAt]);
-
-                db()->prepare(
                     'INSERT IGNORE INTO attendance_records
-                       (student_id, record_date, check_in_time, status, method, confidence,
-                        location_lat, location_lng, synced_at, is_offline_capture)
-                     VALUES (?, ?, TIME(?), "present", ?, ?, ?, ?, NOW(), 1)'
-                )->execute([$sid, $date, $capturedAt, $method, $confidence, $lat, $lng]);
+                       (school_id, student_id, record_date, check_in_time, status, method,
+                        confidence, location_lat, location_lng, synced_at, is_offline_capture)
+                     VALUES (?, ?, ?, ?, "present", ?, ?, ?, ?, NOW(), 1)'
+                )->execute([$schoolId, $sid, $date, $capturedAt, $method, $confidence, $lat, $lng]);
 
                 $synced++;
             } catch (PDOException) {

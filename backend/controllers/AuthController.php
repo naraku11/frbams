@@ -13,12 +13,12 @@ class AuthController
 
         $pdo  = db();
         $stmt = $pdo->prepare(
-            'SELECT s.id, s.student_code, s.first_name, s.last_name, s.email,
+            'SELECT s.id, s.school_id, s.student_code, s.first_name, s.last_name, s.email,
                     s.photo_url, s.password_hash,
                     g.label AS grade_label
              FROM   students s
              JOIN   grades   g ON g.id = s.grade_id
-             WHERE  s.email = ?
+             WHERE  s.email = ? AND s.is_active = 1
              LIMIT  1'
         );
         $stmt->execute([$email]);
@@ -29,8 +29,9 @@ class AuthController
         }
 
         $token = JWT::encode([
-            'sub'  => $row['id'],
-            'role' => 'student',
+            'sub'       => $row['id'],
+            'role'      => 'student',
+            'school_id' => $row['school_id'],
         ], env('JWT_SECRET'), (int) env('JWT_TTL', '86400'));
 
         json_out([

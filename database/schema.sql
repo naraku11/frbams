@@ -616,7 +616,7 @@ GROUP BY d.school_id, d.id, d.label, d.type, d.last_sync_at;
 -- =============================================================================
 
 INSERT IGNORE INTO `schools` (`id`, `name`, `subdomain`, `timezone`) VALUES
-  (1, 'Ridgeview High School', 'ridgeview', 'America/New_York');
+  (1, 'University of the Visayas', 'uv', 'Asia/Manila');
 
 -- Default recognition settings for the demo school
 INSERT IGNORE INTO `recognition_settings` (`school_id`) VALUES (1);
@@ -626,7 +626,7 @@ INSERT IGNORE INTO `recognition_settings` (`school_id`) VALUES (1);
 INSERT IGNORE INTO `users`
   (`school_id`, `employee_code`, `first_name`, `last_name`, `email`, `password_hash`, `role`)
 VALUES
-  (1, 'EMP001', 'Dr.', 'Wexler', 'admin@ridgeview.edu',
+  (1, 'ADM001', 'UV', 'Admin', 'admin@uv.edu.ph',
    '$2b$12$FxYSv8ip9umxUET2rSxTtesB69Q0JI3SeaWS6M2sUyCaeeE0kCak.',
    'admin');
 
@@ -638,7 +638,7 @@ INSERT IGNORE INTO `grades` (`school_id`, `label`, `year_level`) VALUES
 INSERT IGNORE INTO `geofence_zones`
   (`school_id`, `name`, `latitude`, `longitude`, `radius_meters`)
 VALUES
-  (1, 'Main Campus', 40.7128000, -74.0060000, 150);
+  (1, 'UV Main Campus', 10.3157000, 123.8854000, 150);
 
 -- Camera network
 INSERT IGNORE INTO `cameras` (`school_id`, `code`, `label`, `location`, `status`) VALUES
