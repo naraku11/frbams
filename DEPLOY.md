@@ -36,29 +36,9 @@ Create the folder `public_html/api/` in hPanel File Manager, then upload:
 - `backend/src/` directory
 - `backend/controllers/` directory
 
-### 4. Create `.env` on the server
-In hPanel File Manager, create `public_html/api/.env` with your real values.
-**Do NOT upload `.env.example` — it contains real credentials and must stay local.**
-
-```env
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_NAME=u856082912_frbams
-DB_USER=u856082912_frbams_app
-DB_PASS=your_db_password
-DB_CHARSET=utf8mb4
-
-JWT_SECRET=replace_with_64_random_chars
-JWT_TTL=86400
-
-APP_ENV=production
-APP_URL=https://linen-salmon-143266.hostingersite.com/api
-API_PREFIX=/api
-FRONTEND_URL=https://linen-salmon-143266.hostingersite.com
-```
-
-> **JWT_SECRET must be at least 32 random characters.**  
-> Generate one at: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
+### 4. Upload `.env` to the server
+Upload `backend/.env` to `public_html/api/.env`.
+**Never commit this file — it contains real credentials.**
 
 ### 5. Import the database
 1. hPanel → Databases → phpMyAdmin

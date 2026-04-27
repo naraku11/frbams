@@ -81,8 +81,10 @@ Router::add('GET', '/health', fn() => json_out(['status' => 'ok', 'ts' => time()
 
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 
-// Strip a base prefix when hosted at /api/ on a shared domain
-$prefix = rtrim(env('API_PREFIX', ''), '/');
+// Auto-detect the base prefix from the script's location (e.g. /api/index.php → /api).
+// Falls back to API_PREFIX env var, then to no prefix in dev.
+$scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$prefix    = rtrim(env('API_PREFIX', $scriptDir), '/');
 if ($prefix !== '' && str_starts_with($uri, $prefix)) {
     $uri = substr($uri, strlen($prefix)) ?: '/';
 }
