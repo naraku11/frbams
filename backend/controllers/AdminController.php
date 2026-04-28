@@ -157,6 +157,43 @@ class AdminController
         ]);
     }
 
+    /** GET /admin/students/:id */
+    public static function studentDetail(string $id): void
+    {
+        require_admin();
+        $sid = (int) $id;
+        $pdo = db();
+
+        $stmt = $pdo->prepare(
+            "SELECT s.id, s.student_code AS studentCode,
+                    s.first_name AS firstName, s.last_name AS lastName,
+                    CONCAT(s.first_name,' ',s.last_name) AS name,
+                    g.label AS grade, s.email,
+                    s.enrolled_at AS enrolledAt,
+                    COALESCE(v.rate, 0) AS attendanceRate
+             FROM   students s
+             JOIN   grades g ON g.id = s.grade_id
+             LEFT JOIN v_student_attendance_rate v ON v.student_id = s.id
+             WHERE  s.id = ? AND s.is_active = 1"
+        );
+        $stmt->execute([$sid]);
+        $student = $stmt->fetch();
+        if (!$student) error_out('Student not found', 404);
+
+        $recStmt = $pdo->prepare(
+            "SELECT ar.record_date AS date,
+                    TIME_FORMAT(ar.check_in_time, '%H:%i') AS time,
+                    ar.status, ar.method, ar.confidence AS conf
+             FROM   attendance_records ar
+             WHERE  ar.student_id = ?
+             ORDER  BY ar.record_date DESC, ar.check_in_time DESC
+             LIMIT  20"
+        );
+        $recStmt->execute([$sid]);
+
+        json_out(['student' => $student, 'records' => $recStmt->fetchAll()]);
+    }
+
     /** GET /admin/attendance?date=&grade=&status= */
     public static function attendance(): void
     {

@@ -30,6 +30,7 @@ export const api = {
   },
   dashboard:               ()             => request('GET',   '/admin/dashboard'),
   students:                (params = {})  => request('GET',   '/admin/students?'    + new URLSearchParams(params)),
+  studentDetail:           (id)           => request('GET',   `/admin/students/${id}`),
   attendance:              (params = {})  => request('GET',   '/admin/attendance?'  + new URLSearchParams(params)),
   leaveRequests:           (status = 'pending') => request('GET', `/admin/leave-requests?status=${status}`),
   approveLeave:            (id)           => request('POST',  `/admin/leave-requests/${id}/approve`),
