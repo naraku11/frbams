@@ -1,0 +1,18 @@
+Options -Indexes +FollowSymLinks
+
+# Block direct access to .env files anywhere in the project
+<FilesMatch "^\.env(\.example)?$">
+    Require all denied
+</FilesMatch>
+
+RewriteEngine On
+
+# Route /api/* through the PHP backend (END stops further rewriting)
+RewriteRule ^api(/.*)?$ backend/index.php [QSA,END]
+
+# Serve existing static assets from the built frontend
+RewriteCond %{DOCUMENT_ROOT}/frontend/dist%{REQUEST_URI} -f
+RewriteRule ^ frontend/dist%{REQUEST_URI} [L,END]
+
+# SPA fallback — all other routes serve the React app
+RewriteRule ^ frontend/dist/index.html [L,END]

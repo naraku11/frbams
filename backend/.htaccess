@@ -4,13 +4,3 @@ Options -Indexes +FollowSymLinks
 <FilesMatch "^(\.env|\.env\.example|composer\.json|composer\.lock)$">
     Require all denied
 </FilesMatch>
-
-RewriteEngine On
-RewriteBase /api/
-
-# Let real files through
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-
-# Route everything else through index.php
-RewriteRule ^ index.php [QSA,L]
