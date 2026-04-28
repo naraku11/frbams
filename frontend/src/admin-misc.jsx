@@ -150,7 +150,7 @@ function Reports() {
                 onChange={e => setMonth(e.target.value)}
                 style={{width:160}}
               />
-              <button className="fm-btn primary"><I.Export size={14}/> Generate PDF</button>
+              <button className="fm-btn primary" onClick={() => window.print()}><I.Export size={14}/> Generate PDF</button>
             </div>
           </div>
 
@@ -513,13 +513,75 @@ function SettingsCameras() {
   )
 }
 
+const EVENT_LABELS = {
+  absent:            'Absent student',
+  late:              'Late arrival',
+  consecutive_absent:'Consecutive absences',
+  leave:             'Leave request submitted',
+  camera_offline:    'Camera offline',
+  sync_complete:     'Sync completed',
+}
+
+function SettingsNotifications() {
+  const [rules, setRules] = React.useState([])
+
+  React.useEffect(() => {
+    api.notificationRules().then(setRules).catch(() => {})
+  }, [])
+
+  const toggle = (rule, key) => {
+    const patch = { [key]: !rule[key] }
+    setRules(prev => prev.map(r => r.id === rule.id ? { ...r, ...patch } : r))
+    api.updateNotificationRule(rule.id, patch)
+      .catch(() => setRules(prev => prev.map(r => r.id === rule.id ? { ...r, [key]: rule[key] } : r)))
+  }
+
+  return (
+    <div className="fm-card" style={{ padding: 0 }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr repeat(4, 80px)',
+        padding: '10px 20px', borderBottom: '1px solid var(--line-2)',
+        fontSize: 11, color: 'var(--fg-3)', fontWeight: 600,
+        textTransform: 'uppercase', letterSpacing: '0.06em',
+      }}>
+        <span>Event</span>
+        <span style={{ textAlign: 'center' }}>Active</span>
+        <span style={{ textAlign: 'center' }}>Admin</span>
+        <span style={{ textAlign: 'center' }}>Teacher</span>
+        <span style={{ textAlign: 'center' }}>Guardian</span>
+      </div>
+      {rules.length === 0 ? (
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Loading…</div>
+      ) : rules.map((r, i) => (
+        <div key={r.id} style={{
+          display: 'grid', gridTemplateColumns: '1fr repeat(4, 80px)',
+          padding: '14px 20px', alignItems: 'center',
+          borderBottom: i < rules.length - 1 ? '1px solid var(--line-2)' : 'none',
+        }}>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: 13.5 }}>{EVENT_LABELS[r.eventType] ?? r.eventType}</div>
+            {r.threshold > 1 && <div className="fm-muted" style={{ fontSize: 11.5 }}>threshold: {r.threshold}</div>}
+          </div>
+          {['isActive', 'notifyAdmin', 'notifyTeacher', 'notifyGuardianEmail'].map(key => (
+            <div key={key} style={{ display: 'grid', placeItems: 'center', cursor: 'pointer' }}
+              onClick={() => toggle(r, key)}>
+              <div className={`fm-toggle ${r[key] ? 'on' : ''}`} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const SETTINGS_TABS = [
-  { id: 'appearance',   label: 'Appearance' },
-  { id: 'recognition',  label: 'Recognition Engine' },
-  { id: 'cameras',      label: 'Camera Network' },
-  { id: 'privacy',      label: 'Privacy & Retention' },
-  { id: 'integrations', label: 'Integrations' },
-  { id: 'roles',        label: 'Roles & Access' },
+  { id: 'appearance',    label: 'Appearance' },
+  { id: 'recognition',   label: 'Recognition Engine' },
+  { id: 'cameras',       label: 'Camera Network' },
+  { id: 'notifications', label: 'Notification Rules' },
+  { id: 'privacy',       label: 'Privacy & Retention' },
+  { id: 'integrations',  label: 'Integrations' },
+  { id: 'roles',         label: 'Roles & Access' },
 ]
 
 function Settings() {
@@ -551,9 +613,10 @@ function Settings() {
             </nav>
 
             <div>
-              {tab === 'appearance'  && <SettingsAppearance />}
-              {tab === 'recognition' && <SettingsRecognition />}
-              {tab === 'cameras'     && <SettingsCameras />}
+              {tab === 'appearance'    && <SettingsAppearance />}
+              {tab === 'recognition'  && <SettingsRecognition />}
+              {tab === 'cameras'      && <SettingsCameras />}
+              {tab === 'notifications'&& <SettingsNotifications />}
               {(tab === 'privacy' || tab === 'integrations' || tab === 'roles') && (
                 <div className="fm-card" style={{
                   color: 'var(--fg-3)', fontSize: 13,

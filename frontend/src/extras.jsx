@@ -1,114 +1,76 @@
-﻿// extras.jsx â€” Subjects/timetable + offline queue screens
-import React from 'react'
+﻿// extras.jsx — Subjects/timetable + offline queue screens
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { api } from './api'
 import { I } from './icons'
 import { Sidebar, TopBar } from './shell'
 
 
-const SUBJECTS = [
-  { code:"MATH 201", name:"Calculus II", teacher:"Mr. Okafor", room:"204", color:125, attended:18, total:19, days:[1,3,5], time:"09:30 â€“ 10:20" },
-  { code:"LIT 110",  name:"World Literature", teacher:"Ms. Singh", room:"118", color:30, attended:19, total:19, days:[1,2,4], time:"11:00 â€“ 11:50" },
-  { code:"FRA 301",  name:"French III", teacher:"Mme. Romero", room:"302", color:250, attended:17, total:19, days:[2,3,5], time:"13:30 â€“ 14:20" },
-  { code:"CHEM 220", name:"Organic Chemistry", teacher:"Dr. Tanaka", room:"Lab 4", color:70, attended:18, total:19, days:[1,4], time:"15:00 â€“ 16:00" },
-  { code:"CS 101",   name:"Intro to CS", teacher:"Mr. Patel", room:"Lab 2", color:200, attended:14, total:19, days:[2,5], time:"10:30 â€“ 11:20" },
-  { code:"ART 150",  name:"Modern Art", teacher:"Ms. Vogel", room:"Studio A", color:340, attended:19, total:19, days:[3], time:"14:00 â€“ 15:30" },
-];
-
 function Subjects() {
+  const navigate = useNavigate()
+  const [courses, setCourses] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    api.courses().then(setCourses).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
   return (
-    <div className="fm-screen" data-screen-label="Subjects">
+    <div className=”fm-screen” data-screen-label=”Subjects”>
       <Sidebar />
-      <div className="fm-main">
+      <div className=”fm-main”>
         <TopBar />
-        <div className="fm-content">
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:24}}>
+        <div className=”fm-content”>
+          <div style={{display:”flex”, justifyContent:”space-between”, alignItems:”flex-end”, marginBottom:24}}>
             <div>
-              <div className="fm-eyebrow" style={{marginBottom:8}}>Class 10A Â· Spring term</div>
-              <h1 className="fm-h1">Subjects & timetable</h1>
-              <div className="fm-muted" style={{marginTop:6}}>6 subjects Â· 19 sessions per week Â· 91% avg attendance</div>
-            </div>
-            <button className="fm-btn primary"><I.Plus size={14}/> Add subject</button>
-          </div>
-
-          {/* Weekly grid */}
-          <div className="fm-card" style={{padding:0, overflow:"hidden", marginBottom:16}}>
-            <div style={{display:"grid", gridTemplateColumns:"60px repeat(5, 1fr)", borderBottom:"1px solid var(--line)"}}>
-              <div style={{padding:"12px 10px"}}/>
-              {["Mon","Tue","Wed","Thu","Fri"].map((d, i) => (
-                <div key={d} style={{padding:"12px 14px", fontSize:11.5, fontFamily:"var(--mono)", textTransform:"uppercase", letterSpacing:"0.08em", color: i === 0 ? "var(--fg)" : "var(--fg-3)", fontWeight: i === 0 ? 600 : 400}}>
-                  {d} {i === 0 && <span className="fm-pill ok" style={{marginLeft:6, fontSize:10}}>today</span>}
-                </div>
-              ))}
-            </div>
-            <div style={{display:"grid", gridTemplateColumns:"60px repeat(5, 1fr)", minHeight:380, position:"relative"}}>
-              <div style={{borderRight:"1px solid var(--line-2)"}}>
-                {[8,9,10,11,12,13,14,15].map(h => (
-                  <div key={h} style={{height:46, padding:"4px 6px", fontFamily:"var(--mono)", fontSize:10.5, color:"var(--fg-4)", textAlign:"right"}}>
-                    {String(h).padStart(2,"0")}:00
-                  </div>
-                ))}
+              <div className=”fm-eyebrow” style={{marginBottom:8}}>Courses · Current term</div>
+              <h1 className=”fm-h1”>Subjects & timetable</h1>
+              <div className=”fm-muted” style={{marginTop:6}}>
+                {loading ? 'Loading…' : `${courses.length} course${courses.length !== 1 ? 's' : ''} active`}
               </div>
-              {[1,2,3,4,5].map(day => (
-                <div key={day} style={{borderRight:"1px solid var(--line-2)", position:"relative", height:46*8}}>
-                  {SUBJECTS.filter(s => s.days.includes(day)).map((s, i) => {
-                    // Synthetic placement
-                    const startHour = parseInt(s.time.slice(0,2));
-                    const startMin = parseInt(s.time.slice(3,5));
-                    const top = ((startHour - 8) + startMin/60) * 46;
-                    const dur = s.code === "ART 150" ? 1.5 : (s.code === "CHEM 220" ? 1 : 0.83);
-                    return (
-                      <div key={i} style={{
-                        position:"absolute", left:6, right:6, top: top+2, height: dur*46-4,
-                        borderRadius:8, padding:"7px 9px",
-                        background:`oklch(0.94 0.05 ${s.color})`,
-                        borderLeft:`3px solid oklch(0.65 0.16 ${s.color})`,
-                        fontSize:11.5, lineHeight:1.25, overflow:"hidden",
-                      }}>
-                        <div style={{fontWeight:600, color:`oklch(0.30 0.12 ${s.color})`}}>{s.name}</div>
-                        <div className="mono" style={{fontSize:10.5, color:`oklch(0.40 0.10 ${s.color})`, marginTop:2}}>{s.room} Â· {s.teacher.split(" ").slice(-1)}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
             </div>
+            <button className=”fm-btn primary” onClick={() => navigate('/courses')}><I.Plus size={14}/> Add subject</button>
           </div>
 
-          {/* Subject cards */}
-          <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:12}}>
-            {SUBJECTS.map(s => {
-              const pct = Math.round(s.attended/s.total*100);
-              return (
-                <div key={s.code} className="fm-card" style={{padding:18}}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
-                    <div>
-                      <div className="mono" style={{fontSize:11, color:`oklch(0.50 0.14 ${s.color})`, fontWeight:600}}>{s.code}</div>
-                      <div style={{fontSize:15, fontWeight:600, marginTop:3}}>{s.name}</div>
-                      <div className="fm-muted" style={{fontSize:12, marginTop:2}}>{s.teacher}</div>
+          {loading ? (
+            <div className=”fm-card” style={{textAlign:'center', color:'var(--fg-3)', padding:48}}>Loading courses…</div>
+          ) : courses.length === 0 ? (
+            <div className=”fm-card” style={{textAlign:'center', color:'var(--fg-3)', padding:48}}>
+              No courses yet. <span style={{cursor:'pointer', color:'var(--accent)'}} onClick={() => navigate('/courses')}>Add your first course →</span>
+            </div>
+          ) : (
+            <div style={{display:”grid”, gridTemplateColumns:”repeat(3, 1fr)”, gap:12}}>
+              {courses.map(c => {
+                const hue = c.colorHue ?? 145
+                return (
+                  <div key={c.id} className=”fm-card” style={{padding:18}}>
+                    <div style={{display:”flex”, justifyContent:”space-between”, alignItems:”flex-start”}}>
+                      <div>
+                        <div className=”mono” style={{fontSize:11, color:`oklch(0.50 0.14 ${hue})`, fontWeight:600}}>{c.code}</div>
+                        <div style={{fontSize:15, fontWeight:600, marginTop:3}}>{c.name}</div>
+                        <div className=”fm-muted” style={{fontSize:12, marginTop:2}}>{c.teacher ?? '—'}</div>
+                      </div>
+                      <div style={{
+                        width:36, height:36, borderRadius:9,
+                        background:`oklch(0.94 0.06 ${hue})`,
+                        color:`oklch(0.45 0.14 ${hue})`,
+                        display:”grid”, placeItems:”center”,
+                        fontFamily:”var(--mono)”, fontSize:11, fontWeight:600,
+                      }}>{c.enrolled ?? 0}</div>
                     </div>
-                    <div style={{
-                      width:36, height:36, borderRadius:9,
-                      background:`oklch(0.94 0.06 ${s.color})`,
-                      color:`oklch(0.45 0.14 ${s.color})`,
-                      display:"grid", placeItems:"center",
-                      fontFamily:"var(--mono)", fontSize:11, fontWeight:600,
-                    }}>{pct}%</div>
+                    <div style={{display:”flex”, justifyContent:”space-between”, marginTop:14, fontSize:11.5, color:”var(--fg-3)”}}>
+                      <span className=”mono”>{c.enrolled ?? 0} enrolled</span>
+                      <span className=”mono”>{c.room ?? '—'}</span>
+                    </div>
+                    {c.department && (
+                      <div className=”fm-muted” style={{fontSize:11, marginTop:6}}>{c.department} · {c.term}</div>
+                    )}
                   </div>
-                  <div style={{display:"flex", justifyContent:"space-between", marginTop:14, fontSize:11.5, color:"var(--fg-3)"}}>
-                    <span className="mono">{s.attended}/{s.total} sessions</span>
-                    <span className="mono">{s.room} Â· {s.time}</span>
-                  </div>
-                  <div style={{marginTop:8, display:"flex", gap:2}}>
-                    {Array.from({length: s.total}, (_, i) => (
-                      <div key={i} style={{
-                        flex:1, height:6, borderRadius:2,
-                        background: i < s.attended ? `oklch(0.65 0.16 ${s.color})` : "var(--line-2)",
-                      }}/>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -209,136 +171,164 @@ function KioskOffline() {
 
 // Admin: Sync queue / offline diagnostics
 function OfflineSync() {
-  const events = Array.from({length: 8}, (_, i) => {
-    const names = ["Maya Park","Liam Bennett","Zara Singh","Noah Hassan","Aisha MÃ¼ller","Theo Lindqvist","Iris Vogel","Ravi Costa"];
-    const status = i < 5 ? "synced" : i < 7 ? "queued" : "conflict";
-    return {
-      name: names[i],
-      id: "S240" + i,
-      time: `09:${String(40 + i).padStart(2,"0")}:${String((i*7)%60).padStart(2,"0")}`,
-      device: i % 2 ? "Kiosk Â· A1" : "Mobile Â· iOS",
-      status,
-    };
-  });
+  const [queue, setQueue] = useState(null)
+  const [toast, setToast] = useState(false)
+  const [offlineToggles, setOfflineToggles] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(‘frbams_offline_toggles’) || ‘null’) || [true, true, true, true] }
+    catch { return [true, true, true, true] }
+  })
+
+  const reload = () => {
+    api.offlineQueue().then(setQueue).catch(() => setQueue({}))
+  }
+  useEffect(reload, [])
+
+  const forceSync = () => {
+    reload()
+    setToast(true)
+    setTimeout(() => setToast(false), 2500)
+  }
+
+  const toggleOffline = (i) => {
+    const next = offlineToggles.map((v, idx) => idx === i ? !v : v)
+    setOfflineToggles(next)
+    localStorage.setItem(‘frbams_offline_toggles’, JSON.stringify(next))
+  }
+
+  const syncs = queue?.recentSyncs ?? []
+  const devices = queue?.devices ?? []
+
   return (
-    <div className="fm-screen" data-screen-label="Offline sync">
+    <div className=”fm-screen” data-screen-label=”Offline sync”>
       <Sidebar />
-      <div className="fm-main">
+      <div className=”fm-main”>
         <TopBar />
-        <div className="fm-content">
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:24}}>
+        <div className=”fm-content”>
+          {toast && (
+            <div style={{
+              position:’fixed’, top:20, right:20, zIndex:999,
+              background:’var(--fg)’, color:’var(--bg)’,
+              padding:’12px 18px’, borderRadius:10, fontSize:13,
+              boxShadow:’0 4px 16px rgba(0,0,0,0.2)’,
+            }}>
+              Sync request acknowledged — devices will sync when online.
+            </div>
+          )}
+
+          <div style={{display:”flex”, justifyContent:”space-between”, alignItems:”flex-end”, marginBottom:24}}>
             <div>
-              <div className="fm-eyebrow" style={{marginBottom:8}}>Settings Â· Reliability</div>
-              <h1 className="fm-h1">Offline & sync</h1>
-              <div className="fm-muted" style={{marginTop:6}}>Devices keep working without internet. Queued check-ins sync when reconnected.</div>
+              <div className=”fm-eyebrow” style={{marginBottom:8}}>Settings · Reliability</div>
+              <h1 className=”fm-h1”>Offline & sync</h1>
+              <div className=”fm-muted” style={{marginTop:6}}>Devices keep working without internet. Queued check-ins sync when reconnected.</div>
             </div>
-            <button className="fm-btn primary"><I.Wifi size={14}/> Force sync now</button>
+            <button className=”fm-btn primary” onClick={forceSync}><I.Wifi size={14}/> Force sync now</button>
           </div>
 
-          <div style={{display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:16, marginBottom:16}}>
-            <div className="fm-card">
-              <div className="fm-eyebrow">Devices online</div>
-              <div className="fm-stat-num" style={{marginTop:8}}>11<span style={{fontSize:18, color:"var(--fg-3)"}}>/12</span></div>
-              <div className="mono fm-muted" style={{fontSize:11, marginTop:4}}>1 in offline mode</div>
+          <div style={{display:”grid”, gridTemplateColumns:”repeat(4, 1fr)”, gap:16, marginBottom:16}}>
+            <div className=”fm-card”>
+              <div className=”fm-eyebrow”>Devices online</div>
+              <div className=”fm-stat-num” style={{marginTop:8}}>{queue?.devicesOnline ?? ‘—‘}</div>
+              <div className=”mono fm-muted” style={{fontSize:11, marginTop:4}}>active in last 5 min</div>
             </div>
-            <div className="fm-card">
-              <div className="fm-eyebrow">Queued events</div>
-              <div className="fm-stat-num" style={{marginTop:8, color:"var(--amber)"}}>47</div>
-              <div className="mono fm-muted" style={{fontSize:11, marginTop:4}}>oldest 26 min</div>
+            <div className=”fm-card”>
+              <div className=”fm-eyebrow”>Queued events</div>
+              <div className=”fm-stat-num” style={{marginTop:8, color: (queue?.totalQueued ?? 0) > 0 ? “var(--amber)” : “var(--fg)”}}>
+                {queue?.totalQueued ?? ‘—‘}
+              </div>
+              <div className=”mono fm-muted” style={{fontSize:11, marginTop:4}}>awaiting sync</div>
             </div>
-            <div className="fm-card">
-              <div className="fm-eyebrow">Local storage used</div>
-              <div className="fm-stat-num" style={{marginTop:8}}>112<span style={{fontSize:18, color:"var(--fg-3)"}}>MB</span></div>
-              <div className="mono fm-muted" style={{fontSize:11, marginTop:4}}>cap 2 GB Â· safe</div>
+            <div className=”fm-card”>
+              <div className=”fm-eyebrow”>Devices tracked</div>
+              <div className=”fm-stat-num” style={{marginTop:8}}>{devices.length || ‘—‘}</div>
+              <div className=”mono fm-muted” style={{fontSize:11, marginTop:4}}>{devices.filter(d => d.queued > 0).length} with queue</div>
             </div>
-            <div className="fm-card">
-              <div className="fm-eyebrow">Last full sync</div>
-              <div className="fm-stat-num" style={{marginTop:8, fontSize:30}}>09:18</div>
-              <div className="mono fm-muted" style={{fontSize:11, marginTop:4}}>26 min ago</div>
+            <div className=”fm-card”>
+              <div className=”fm-eyebrow”>Recent syncs</div>
+              <div className=”fm-stat-num” style={{marginTop:8, fontSize:30}}>{syncs.length}</div>
+              <div className=”mono fm-muted” style={{fontSize:11, marginTop:4}}>in log</div>
             </div>
           </div>
 
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16}}>
-            <div className="fm-card">
-              <h3 className="fm-h3" style={{marginBottom:14}}>Offline behavior</h3>
-              <div style={{display:"flex", flexDirection:"column", gap:14}}>
+          <div style={{display:”grid”, gridTemplateColumns:”1fr 1fr”, gap:16, marginBottom:16}}>
+            <div className=”fm-card”>
+              <h3 className=”fm-h3” style={{marginBottom:14}}>Offline behavior</h3>
+              <div style={{display:”flex”, flexDirection:”column”, gap:14}}>
                 {[
-                  ["Keep recognizing offline","Cache last 4 weeks of templates on each device","on"],
-                  ["Auto-retry sync","Every 30 seconds when network resumes","on"],
-                  ["Local fallback PIN","Allow 4-digit PIN if face unrecognized","on"],
-                  ["Conflict resolution","Prefer earliest timestamp on duplicate check-ins","on"],
+                  [“Keep recognizing offline”,”Cache last 4 weeks of templates on each device”],
+                  [“Auto-retry sync”,”Every 30 seconds when network resumes”],
+                  [“Local fallback PIN”,”Allow 4-digit PIN if face unrecognized”],
+                  [“Conflict resolution”,”Prefer earliest timestamp on duplicate check-ins”],
                 ].map((row, i) => (
-                  <div key={i} style={{display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom: i < 3 ? 14 : 0, borderBottom: i < 3 ? "1px solid var(--line-2)" : "none"}}>
+                  <div key={i} style={{display:”flex”, justifyContent:”space-between”, alignItems:”center”, paddingBottom: i < 3 ? 14 : 0, borderBottom: i < 3 ? “1px solid var(--line-2)” : “none”}}
+                    onClick={() => toggleOffline(i)}>
                     <div>
                       <div style={{fontSize:13, fontWeight:500}}>{row[0]}</div>
-                      <div className="fm-muted" style={{fontSize:11.5, marginTop:2}}>{row[1]}</div>
+                      <div className=”fm-muted” style={{fontSize:11.5, marginTop:2}}>{row[1]}</div>
                     </div>
-                    <div className={`fm-toggle ${row[2] === "on" ? "on" : ""}`}/>
+                    <div className={`fm-toggle ${offlineToggles[i] ? “on” : “”}`}/>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="fm-card">
-              <h3 className="fm-h3" style={{marginBottom:14}}>Network timeline (last hour)</h3>
-              <div style={{display:"flex", alignItems:"flex-end", gap:2, height:120}}>
-                {Array.from({length:60}, (_, i) => {
-                  const offline = i >= 32 && i < 58;
-                  return (
-                    <div key={i} style={{
-                      flex:1, height: (offline ? 30 : 80 - (i*7)%30) + "%",
-                      background: offline ? "var(--amber)" : "var(--accent)",
-                      borderRadius:1,
-                    }}/>
-                  );
-                })}
-              </div>
-              <div style={{display:"flex", justifyContent:"space-between", marginTop:8, fontFamily:"var(--mono)", fontSize:10.5, color:"var(--fg-4)"}}>
-                <span>âˆ’60 min</span><span style={{color:"var(--amber)"}}>OFFLINE 09:12 â€“ 09:38</span><span>now</span>
-              </div>
-              <div style={{marginTop:14, padding:10, background:"var(--amber-soft)", borderRadius:8, fontSize:12, color:"oklch(0.4 0.10 70)"}}>
-                <b style={{fontWeight:600}}>Kiosk A1 lost connection at 09:12</b> â€” recovered at 09:38. 47 events captured locally; 42 already replayed.
-              </div>
+            <div className=”fm-card”>
+              <h3 className=”fm-h3” style={{marginBottom:14}}>Device queue status</h3>
+              {devices.length === 0 ? (
+                <div className=”fm-muted” style={{fontSize:13}}>No device data available.</div>
+              ) : (
+                <div style={{display:”flex”, flexDirection:”column”, gap:10}}>
+                  {devices.map((d, i) => (
+                    <div key={i} style={{display:”flex”, justifyContent:”space-between”, alignItems:”center”, padding:”10px 12px”, background:”var(--line-2)”, borderRadius:8}}>
+                      <div>
+                        <div style={{fontSize:13, fontWeight:500}}>{d.label}</div>
+                        <div className=”mono fm-muted” style={{fontSize:11, marginTop:1}}>{d.type} · {d.queued} queued</div>
+                      </div>
+                      <div className=”mono fm-muted” style={{fontSize:11}}>
+                        {d.lastSync ? new Date(d.lastSync).toLocaleTimeString([], {hour:’2-digit’, minute:’2-digit’}) : ‘—‘}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="fm-card" style={{padding:0}}>
-            <div style={{padding:"18px 20px 12px", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-              <h2 className="fm-h2">Sync queue</h2>
-              <span className="fm-muted mono" style={{fontSize:11.5}}>showing 8 of 47</span>
+          <div className=”fm-card” style={{padding:0}}>
+            <div style={{padding:”18px 20px 12px”, display:”flex”, justifyContent:”space-between”, alignItems:”baseline”}}>
+              <h2 className=”fm-h2”>Recent syncs</h2>
+              <span className=”fm-muted mono” style={{fontSize:11.5}}>last {syncs.length}</span>
             </div>
-            <table className="fm-table">
-              <thead>
-                <tr>
-                  <th style={{paddingLeft:20}}>Captured</th>
-                  <th>Student</th>
-                  <th>Device</th>
-                  <th>Recorded at</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((e, i) => (
-                  <tr key={i}>
-                    <td style={{paddingLeft:20}} className="mono">{e.time}</td>
-                    <td>
-                      <div style={{display:"flex", gap:10, alignItems:"center"}}>
-                        <div className="fm-avatar sm" style={{background:`oklch(0.86 0.14 ${(i*73)%360})`}}>{e.name.split(" ").map(s=>s[0]).join("")}</div>
-                        <div>
-                          <div style={{fontWeight:500}}>{e.name}</div>
-                          <div className="mono fm-muted" style={{fontSize:11}}>{e.id}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="fm-muted">{e.device}</td>
-                    <td className="mono">{e.status === "queued" ? <span className="fm-muted">â€” pending</span> : `09:${(45 + i)%60}`}</td>
-                    <td>
-                      <span className={`fm-pill ${e.status === "synced" ? "ok" : e.status === "queued" ? "late" : "ab"}`}>{e.status}</span>
-                    </td>
+            {syncs.length === 0 ? (
+              <div style={{padding:32, textAlign:’center’, color:’var(--fg-3)’, fontSize:13}}>No sync history.</div>
+            ) : (
+              <table className=”fm-table”>
+                <thead>
+                  <tr>
+                    <th style={{paddingLeft:20}}>Device</th>
+                    <th>Started</th>
+                    <th>Synced</th>
+                    <th>Conflicts</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {syncs.map((s, i) => (
+                    <tr key={i}>
+                      <td style={{paddingLeft:20}}>
+                        <div style={{fontWeight:500}}>{s.device}</div>
+                        <div className=”mono fm-muted” style={{fontSize:11}}>{s.deviceType}</div>
+                      </td>
+                      <td className=”mono”>{s.startedAt ? new Date(s.startedAt).toLocaleTimeString([], {hour:’2-digit’, minute:’2-digit’}) : ‘—‘}</td>
+                      <td className=”mono”>{s.synced ?? 0}</td>
+                      <td className=”mono”>{s.conflicts ?? 0}</td>
+                      <td>
+                        <span className={`fm-pill ${s.status === ‘completed’ ? ‘ok’ : s.status === ‘failed’ ? ‘ab’ : ‘late’}`}>{s.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
@@ -429,189 +419,156 @@ function MobileOffline() {
 
 export { Subjects, KioskOffline, OfflineSync, MobileOffline };
 
-// Course/subject management â€” add a new course
+// Course/subject management — add a new course
+const TERMS = ['2024-2025 Term 1', '2024-2025 Term 2', '2024-2025 Full Year', 'Semester 1', 'Semester 2']
+
 function CourseManager() {
-  const [name, setName] = React.useState("Advanced Biology");
-  const [code, setCode] = React.useState("BIO 220");
-  const [days, setDays] = React.useState([1, 3, 5]);
-  const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat"];
-  const toggleDay = (i) => setDays(d => d.includes(i) ? d.filter(x=>x!==i) : [...d, i].sort());
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ name: '', code: '', term: TERMS[0], departmentId: '', teacherId: '', roomId: '' })
+  const [teachers, setTeachers] = useState([])
+  const [depts,    setDepts]    = useState([])
+  const [rooms,    setRooms]    = useState([])
+  const [saving,   setSaving]   = useState(false)
+  const [done,     setDone]     = useState(null)
+  const [error,    setError]    = useState('')
+
+  useEffect(() => {
+    Promise.all([api.teachers(), api.departments(), api.rooms()])
+      .then(([t, d, r]) => { setTeachers(t); setDepts(d); setRooms(r) })
+      .catch(() => {})
+  }, [])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const submit = () => {
+    if (!form.name.trim() || !form.code.trim()) {
+      setError('Course name and code are required.'); return
+    }
+    setSaving(true); setError('')
+    api.createCourse({
+      name:         form.name.trim(),
+      code:         form.code.trim(),
+      term:         form.term,
+      departmentId: form.departmentId || undefined,
+      teacherId:    form.teacherId    || undefined,
+      roomId:       form.roomId       || undefined,
+    })
+      .then(res => setDone(res))
+      .catch(e => setError(e.message))
+      .finally(() => setSaving(false))
+  }
+
+  if (done) {
+    return (
+      <div className=”fm-screen” data-screen-label=”Course Manager”>
+        <Sidebar />
+        <div className=”fm-main”>
+          <TopBar />
+          <div className=”fm-content”>
+            <div className=”fm-card” style={{maxWidth:480, textAlign:'center', padding:48}}>
+              <div style={{fontSize:32, marginBottom:16}}>✓</div>
+              <h2 className=”fm-h2” style={{marginBottom:8}}>Course created</h2>
+              <div className=”fm-muted” style={{marginBottom:24}}><b>{done.name}</b> · <span className=”mono”>{done.code}</span></div>
+              <div style={{display:'flex', gap:8, justifyContent:'center'}}>
+                <button className=”fm-btn” onClick={() => { setDone(null); setForm({ name:'', code:'', term:TERMS[0], departmentId:'', teacherId:'', roomId:'' }) }}>Create another</button>
+                <button className=”fm-btn primary” onClick={() => navigate('/subjects')}>View subjects →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="fm-screen" data-screen-label="Course Manager">
+    <div className=”fm-screen” data-screen-label=”Course Manager”>
       <Sidebar />
-      <div className="fm-main">
+      <div className=”fm-main”>
         <TopBar />
-        <div className="fm-content">
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:24}}>
+        <div className=”fm-content”>
+          <div style={{display:”flex”, justifyContent:”space-between”, alignItems:”flex-end”, marginBottom:24}}>
             <div>
-              <div className="fm-eyebrow" style={{marginBottom:8}}>Courses Â· New</div>
-              <h1 className="fm-h1">Add a course</h1>
-              <div className="fm-muted" style={{marginTop:6}}>Define the schedule, assign a teacher, and link it to a class roster. Attendance starts the first session.</div>
+              <div className=”fm-eyebrow” style={{marginBottom:8}}>Courses · New</div>
+              <h1 className=”fm-h1”>Add a course</h1>
+              <div className=”fm-muted” style={{marginTop:6}}>Define the course, assign a teacher and room, then start tracking attendance.</div>
             </div>
-            <div style={{display:"flex", gap:8}}>
-              <button className="fm-btn">Cancel</button>
-              <button className="fm-btn primary"><I.Check size={14}/> Create course</button>
+            <div style={{display:”flex”, gap:8}}>
+              <button className=”fm-btn” onClick={() => navigate('/subjects')}>Cancel</button>
+              <button className=”fm-btn primary” disabled={saving} onClick={submit}>
+                {saving ? 'Creating…' : <><I.Check size={14}/> Create course</>}
+              </button>
             </div>
           </div>
 
-          <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:20}}>
-            <div style={{display:"flex", flexDirection:"column", gap:16}}>
-              <div className="fm-card">
-                <h3 className="fm-h3" style={{marginBottom:14}}>Course details</h3>
-                <div style={{display:"grid", gap:14}}>
-                  <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:12}}>
+          {error && (
+            <div style={{marginBottom:16, padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5}}>
+              {error}
+            </div>
+          )}
+
+          <div style={{display:”grid”, gridTemplateColumns:”1.4fr 1fr”, gap:20}}>
+            <div style={{display:”flex”, flexDirection:”column”, gap:16}}>
+              <div className=”fm-card”>
+                <h3 className=”fm-h3” style={{marginBottom:14}}>Course details</h3>
+                <div style={{display:”grid”, gap:14}}>
+                  <div style={{display:”grid”, gridTemplateColumns:”2fr 1fr”, gap:12}}>
                     <div>
-                      <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Course name</div>
-                      <input className="fm-input" value={name} onChange={e => setName(e.target.value)} />
+                      <div style={{fontSize:11.5, color:”var(--fg-3)”, marginBottom:5}}>Course name <span style={{color:”var(--red)”}}>*</span></div>
+                      <input className=”fm-input” value={form.name} onChange={e => set('name', e.target.value)} placeholder=”e.g. Advanced Biology” />
                     </div>
                     <div>
-                      <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Code</div>
-                      <input className="fm-input mono" value={code} onChange={e => setCode(e.target.value)} />
+                      <div style={{fontSize:11.5, color:”var(--fg-3)”, marginBottom:5}}>Code <span style={{color:”var(--red)”}}>*</span></div>
+                      <input className=”fm-input mono” value={form.code} onChange={e => set('code', e.target.value)} placeholder=”BIO 220” />
                     </div>
                   </div>
-                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+                  <div style={{display:”grid”, gridTemplateColumns:”1fr 1fr”, gap:12}}>
                     <div>
-                      <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Department</div>
-                      <select className="fm-input" defaultValue="sci">
-                        <option value="sci">Science</option>
-                        <option>Mathematics</option>
-                        <option>Humanities</option>
-                        <option>Languages</option>
+                      <div style={{fontSize:11.5, color:”var(--fg-3)”, marginBottom:5}}>Department</div>
+                      <select className=”fm-input” value={form.departmentId} onChange={e => set('departmentId', e.target.value)}>
+                        <option value=””>No department</option>
+                        {depts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Term</div>
-                      <select className="fm-input" defaultValue="spring">
-                        <option value="spring">Spring 2026</option>
-                        <option>Fall 2026</option>
+                      <div style={{fontSize:11.5, color:”var(--fg-3)”, marginBottom:5}}>Term</div>
+                      <select className=”fm-input” value={form.term} onChange={e => set('term', e.target.value)}>
+                        {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Description</div>
-                    <textarea className="fm-input" rows={3} style={{resize:"vertical", padding:"10px 12px"}}
-                              defaultValue="Cellular processes, genetics, and ecology with weekly lab work."/>
-                  </div>
-                </div>
-              </div>
-
-              <div className="fm-card">
-                <h3 className="fm-h3" style={{marginBottom:14}}>Schedule</h3>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:14}}>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Start time</div>
-                    <input className="fm-input mono" type="time" defaultValue="10:30" />
-                  </div>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>End time</div>
-                    <input className="fm-input mono" type="time" defaultValue="11:20" />
-                  </div>
-                </div>
-                <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:8}}>Meeting days</div>
-                <div style={{display:"flex", gap:6}}>
-                  {dayNames.map((d, i) => (
-                    <button key={d} onClick={() => toggleDay(i)} className="fm-btn" style={{
-                      flex:1, justifyContent:"center",
-                      background: days.includes(i) ? "var(--accent)" : "var(--card)",
-                      color: days.includes(i) ? "var(--accent-ink)" : "var(--fg-2)",
-                      borderColor: days.includes(i) ? "transparent" : "var(--line)",
-                      fontWeight: days.includes(i) ? 600 : 400,
-                    }}>{d}</button>
-                  ))}
-                </div>
-                <div className="fm-muted mono" style={{fontSize:11, marginTop:10}}>
-                  {days.length} Ã— 50 min Â· ~{days.length * 14} sessions over the term
-                </div>
-              </div>
-
-              <div className="fm-card">
-                <h3 className="fm-h3" style={{marginBottom:14}}>Roster</h3>
-                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-                  <div className="fm-muted" style={{fontSize:13}}>Class 11A Â· 28 students</div>
-                  <button className="fm-btn"><I.Plus size={13}/> Add students</button>
-                </div>
-                <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
-                  {["Maya P.","Liam B.","Zara S.","Noah B.","Aisha H.","Theo L.","Iris V.","Ravi C.","Hana I.","+19 more"].map((n, i) => (
-                    <span key={i} style={{
-                      padding:"5px 10px", borderRadius:99, fontSize:12,
-                      background: i === 9 ? "var(--line-2)" : "var(--card)",
-                      border:"1px solid var(--line)", color: i === 9 ? "var(--fg-3)" : "var(--fg)",
-                    }}>{n}</span>
-                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Right column */}
-            <div style={{display:"flex", flexDirection:"column", gap:16}}>
-              <div className="fm-card">
-                <h3 className="fm-h3" style={{marginBottom:14}}>Teacher</h3>
-                <div style={{display:"flex", alignItems:"center", gap:12, padding:"10px", border:"1px solid var(--line)", borderRadius:10, marginBottom:10}}>
-                  <div className="fm-avatar" style={{background:"oklch(0.86 0.14 200)"}}>JT</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13.5, fontWeight:500}}>Dr. Jules Tanaka</div>
-                    <div className="fm-muted mono" style={{fontSize:11, marginTop:2}}>Science Â· 12 years Â· Lab 4</div>
-                  </div>
-                  <button className="fm-btn">Change</button>
-                </div>
-                <div className="fm-muted" style={{fontSize:11.5}}>
-                  Currently teaching Org Chem (28) and Genetics (24). Adding this course brings load to 3 classes.
-                </div>
+            <div style={{display:”flex”, flexDirection:”column”, gap:16}}>
+              <div className=”fm-card”>
+                <h3 className=”fm-h3” style={{marginBottom:14}}>Teacher</h3>
+                <div style={{fontSize:11.5, color:”var(--fg-3)”, marginBottom:5}}>Assign teacher</div>
+                <select className=”fm-input” value={form.teacherId} onChange={e => set('teacherId', e.target.value)}>
+                  <option value=””>Unassigned</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
               </div>
 
-              <div className="fm-card">
-                <h3 className="fm-h3" style={{marginBottom:14}}>Room & equipment</h3>
-                <div style={{display:"grid", gap:10}}>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Room</div>
-                    <select className="fm-input" defaultValue="lab4">
-                      <option value="lab4">Lab 4 Â· Science Wing</option>
-                      <option>Lab 2 Â· Science Wing</option>
-                      <option>Room 204</option>
-                    </select>
-                  </div>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Camera</div>
-                    <div style={{padding:"10px 12px", border:"1px solid var(--line)", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-                      <span style={{fontSize:13}}>Lab 4 Â· Cam D2</span>
-                      <span className="fm-pill ok">online Â· 98%</span>
-                    </div>
-                  </div>
-                </div>
+              <div className=”fm-card”>
+                <h3 className=”fm-h3” style={{marginBottom:14}}>Room</h3>
+                <div style={{fontSize:11.5, color:”var(--fg-3)”, marginBottom:5}}>Assign room</div>
+                <select className=”fm-input” value={form.roomId} onChange={e => set('roomId', e.target.value)}>
+                  <option value=””>No room</option>
+                  {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.building ? ` · ${r.building}` : ''}</option>)}
+                </select>
               </div>
 
-              <div className="fm-card">
-                <h3 className="fm-h3" style={{marginBottom:14}}>Attendance rules</h3>
-                <div style={{display:"flex", flexDirection:"column", gap:12}}>
-                  {[
-                    ["Late threshold","After 8 min","on"],
-                    ["Auto-mark absent","After 30 min no scan","on"],
-                    ["Notify guardian on absence","Email + SMS","on"],
-                    ["Allow mobile check-in","Within campus geofence","on"],
-                  ].map((row, i) => (
-                    <div key={i} style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-                      <div>
-                        <div style={{fontSize:13, fontWeight:500}}>{row[0]}</div>
-                        <div className="fm-muted" style={{fontSize:11.5, marginTop:1}}>{row[1]}</div>
-                      </div>
-                      <div className={`fm-toggle ${row[2] === "on" ? "on" : ""}`}/>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Live preview card */}
-              <div className="fm-card" style={{padding:14, background:"var(--line-2)", borderStyle:"dashed"}}>
-                <div className="fm-eyebrow" style={{marginBottom:8}}>Preview Â· timetable card</div>
+              <div className=”fm-card” style={{padding:14, background:”var(--line-2)”, borderStyle:”dashed”}}>
+                <div className=”fm-eyebrow” style={{marginBottom:8}}>Preview · timetable card</div>
                 <div style={{
-                  padding:"10px 12px", borderRadius:8,
+                  padding:”10px 12px”, borderRadius:8,
                   background:`oklch(0.94 0.05 145)`,
                   borderLeft:`3px solid oklch(0.65 0.16 145)`,
                 }}>
-                  <div style={{fontSize:12.5, fontWeight:600, color:`oklch(0.30 0.12 145)`}}>{name}</div>
-                  <div className="mono" style={{fontSize:10.5, color:`oklch(0.40 0.10 145)`, marginTop:2}}>
-                    {code} Â· Lab 4 Â· Tanaka
+                  <div style={{fontSize:12.5, fontWeight:600, color:`oklch(0.30 0.12 145)`}}>{form.name || 'Course name'}</div>
+                  <div className=”mono” style={{fontSize:10.5, color:`oklch(0.40 0.10 145)`, marginTop:2}}>
+                    {form.code || 'CODE'} · {rooms.find(r => r.id == form.roomId)?.name ?? 'No room'} · {teachers.find(t => t.id == form.teacherId)?.name?.split(' ').slice(-1)[0] ?? 'Unassigned'}
                   </div>
                 </div>
               </div>

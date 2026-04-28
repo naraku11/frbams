@@ -80,6 +80,16 @@ Router::add('GET',  '/admin/cameras',                       [AdminController::cl
 Router::add('GET',  '/admin/grades',                        [AdminController::class, 'grades']);
 Router::add('GET',  '/admin/settings/recognition',          [AdminController::class, 'recognitionSettings']);
 Router::add('PATCH','/admin/settings/recognition',          [AdminController::class, 'saveRecognitionSettings']);
+Router::add('GET',  '/admin/badge-counts',                  [AdminController::class, 'badgeCounts']);
+Router::add('GET',  '/admin/teachers',                      [AdminController::class, 'teachers']);
+Router::add('GET',  '/admin/departments',                   [AdminController::class, 'departments']);
+Router::add('GET',  '/admin/rooms',                         [AdminController::class, 'rooms']);
+Router::add('GET',  '/admin/courses',                       [AdminController::class, 'courses']);
+Router::add('POST', '/admin/courses',                       [AdminController::class, 'createCourse']);
+Router::add('GET',  '/admin/offline-queue',                 [AdminController::class, 'offlineQueue']);
+Router::add('GET',  '/admin/notification-rules',            [AdminController::class, 'notificationRules']);
+Router::add('PATCH','/admin/notification-rules/:id',        [AdminController::class, 'updateNotificationRule']);
+Router::add('PATCH','/admin/attendance/:id',                [AdminController::class, 'updateAttendance']);
 
 // Health check
 Router::add('GET', '/health', fn() => json_out(['status' => 'ok', 'ts' => time()]));

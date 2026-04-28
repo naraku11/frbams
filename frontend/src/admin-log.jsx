@@ -16,6 +16,14 @@ function AttendanceLog() {
   const [grade,  setGrade]  = useState('')
   const [rows,   setRows]   = useState([])
   const [loading, setLoading] = useState(false)
+  const [menu,   setMenu]   = useState(null)
+  const [overriding, setOverriding] = useState(null)
+
+  useEffect(() => {
+    const close = () => setMenu(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -25,6 +33,7 @@ function AttendanceLog() {
     api.attendance(params)
       .then(raw => setRows(raw.map(r => ({
         ...r,
+        recId:  r.id,
         id:     r.studentCode,
         hue:    hue(r.studentCode),
         first:  r.firstName,
@@ -168,7 +177,38 @@ function AttendanceLog() {
                         {r.status}
                       </span>
                     </td>
-                    <td><span className="fm-muted" style={{cursor:"pointer"}}>⋯</span></td>
+                    <td>
+                      <div style={{position:'relative'}}>
+                        <span
+                          className="fm-muted"
+                          style={{cursor:'pointer', padding:'2px 6px', opacity: overriding === r.recId ? 0.4 : 1}}
+                          onClick={e => { e.stopPropagation(); setMenu(menu === r.recId ? null : r.recId) }}
+                        >⋯</span>
+                        {menu === r.recId && (
+                          <div style={{
+                            position:'absolute', right:0, top:'100%', zIndex:20,
+                            background:'var(--card)', border:'1px solid var(--line)',
+                            borderRadius:8, boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
+                            minWidth:140, padding:'4px 0',
+                          }}>
+                            {['present','late','absent','excused'].map(s => (
+                              <div
+                                key={s}
+                                style={{padding:'8px 14px', fontSize:12.5, cursor:'pointer'}}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setMenu(null)
+                                  setOverriding(r.recId)
+                                  api.updateAttendance(r.recId, { status: s })
+                                    .then(() => setRows(prev => prev.map(x => x.recId === r.recId ? {...x, status: s} : x)))
+                                    .finally(() => setOverriding(null))
+                                }}
+                              >Mark {s}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

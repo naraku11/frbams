@@ -1,14 +1,29 @@
 // admin-dashboard.jsx — main analytics dashboard
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from './api'
 import { I } from './icons'
 import { Sidebar, TopBar } from './shell'
 
 export function Dashboard({ layout = "sidebar" }) {
+  const navigate = useNavigate()
   const [data,   setData]   = React.useState(null)
   const [alerts, setAlerts] = React.useState([])
   React.useEffect(() => { api.dashboard().then(setData).catch(() => {}) }, [])
   React.useEffect(() => { api.notifications({ limit: 4 }).then(setAlerts).catch(() => {}) }, [])
+
+  const exportDay = () => {
+    const date = data?.date ?? new Date().toISOString().slice(0, 10)
+    api.attendance({ date }).then(rows => {
+      const header = 'Student,ID,Grade,Time,Status'
+      const lines  = rows.map(r => [`"${r.name ?? ''}"`, r.studentCode ?? '', r.grade ?? '', r.time ?? '', r.status ?? ''].join(','))
+      const blob   = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
+      const a      = document.createElement('a')
+      a.href       = URL.createObjectURL(blob)
+      a.download   = `attendance-${date}.csv`
+      a.click()
+    }).catch(() => {})
+  }
 
   const stats   = data?.stats   ?? {}
   const recent  = data?.recent  ?? []
@@ -41,8 +56,8 @@ export function Dashboard({ layout = "sidebar" }) {
               </div>
             </div>
             <div style={{display:"flex", gap:8}}>
-              <button className="fm-btn"><I.Export size={14}/> Export day</button>
-              <button className="fm-btn primary"><I.Camera size={14}/> Open kiosk</button>
+              <button className="fm-btn" onClick={exportDay}><I.Export size={14}/> Export day</button>
+              <button className="fm-btn primary" onClick={() => navigate('/kiosk')}><I.Camera size={14}/> Open kiosk</button>
             </div>
           </div>
 
@@ -122,7 +137,7 @@ export function Dashboard({ layout = "sidebar" }) {
                   <h2 className="fm-h2">Recent check-ins</h2>
                   <div className="fm-muted" style={{fontSize:12, marginTop:4}}>Live · today</div>
                 </div>
-                <a className="mono" style={{fontSize:12, color:"var(--fg-3)", cursor:"pointer"}}>View all →</a>
+                <a className="mono" style={{fontSize:12, color:"var(--fg-3)", cursor:"pointer"}} onClick={() => navigate('/log')}>View all →</a>
               </div>
               <table className="fm-table">
                 <thead>

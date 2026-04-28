@@ -2,22 +2,24 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { I } from './icons'
+import { api } from './api'
 
-const NAV = [
+const NAV_DEFS = [
   { label: 'Dashboard',      icon: 'Home',    to: '/dashboard' },
   { label: 'Live Capture',   icon: 'Camera',  to: '/kiosk' },
-  { label: 'Attendance Log', icon: 'Log',     to: '/log',      badge: '324' },
-  { label: 'Students',       icon: 'Users',   to: '/students', badge: '548' },
+  { label: 'Attendance Log', icon: 'Log',     to: '/log',      badgeKey: 'todayCheckins' },
+  { label: 'Students',       icon: 'Users',   to: '/students', badgeKey: 'totalStudents' },
   { label: 'Enrollment',     icon: 'Face',    to: '/enroll' },
   { label: 'Reports',        icon: 'Chart',   to: '/reports' },
 ]
-const NAV2 = [
-  { label: 'Leave Requests', icon: 'Leave',    to: '/leave',    badge: '4' },
+const NAV2_DEFS = [
+  { label: 'Leave Requests', icon: 'Leave',    to: '/leave',    badgeKey: 'pendingLeave' },
   { label: 'Notifications',  icon: 'Bell',     to: '/alerts' },
   { label: 'Settings',       icon: 'Settings', to: '/settings' },
 ]
 
-function NavItem({ item }) {
+function NavItem({ item, counts }) {
+  const badge = item.badgeKey ? (counts[item.badgeKey] ?? null) : null
   return (
     <NavLink
       to={item.to}
@@ -27,7 +29,7 @@ function NavItem({ item }) {
         {React.createElement(I[item.icon], { size: 15 })}
         {item.label}
       </span>
-      {item.badge && <span className="fm-nav-badge">{item.badge}</span>}
+      {badge != null && badge > 0 && <span className="fm-nav-badge">{badge}</span>}
     </NavLink>
   )
 }
@@ -46,6 +48,11 @@ export function Sidebar({ layout = 'sidebar' }) {
   const initials  = user.initials ?? 'DW'
   const name      = user.name ?? 'Dr. Wexler'
   const role      = user.role ?? 'Vice Principal'
+  const [counts,  setCounts] = React.useState({})
+
+  React.useEffect(() => {
+    api.badgeCounts().then(setCounts).catch(() => {})
+  }, [])
 
   const logout = () => {
     localStorage.removeItem('frbams_authed')
@@ -62,7 +69,7 @@ export function Sidebar({ layout = 'sidebar' }) {
           <span style={{ color: 'var(--side-brand-fg, var(--fg))' }}>FRBAMS</span>
         </div>
         <div className="fm-topnav-links">
-          {NAV.map(n => (
+          {NAV_DEFS.map(n => (
             <NavLink key={n.to} to={n.to} className={({ isActive }) => isActive ? 'active' : ''}>
               {n.label}
             </NavLink>
@@ -98,11 +105,11 @@ export function Sidebar({ layout = 'sidebar' }) {
       </div>
       <div className="fm-side-section">Live</div>
       <nav className="fm-nav">
-        {NAV.map(n => <NavItem key={n.to} item={n} />)}
+        {NAV_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
       </nav>
       <div className="fm-side-section">Manage</div>
       <nav className="fm-nav">
-        {NAV2.map(n => <NavItem key={n.to} item={n} />)}
+        {NAV2_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
       </nav>
       <div className="fm-side-foot">
         <div className="fm-avatar">{initials}</div>
@@ -123,12 +130,26 @@ export function Sidebar({ layout = 'sidebar' }) {
   )
 }
 
-export function TopBar({ search = 'Search students, classes, IDs…', right }) {
+export function TopBar({ right }) {
+  const navigate = useNavigate()
+  const [q, setQ] = React.useState('')
+
   return (
     <div className="fm-topbar">
       <div className="fm-search">
         <I.Search size={14} />
-        <span>{search}</span>
+        <input
+          style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--fg)', width: '100%' }}
+          placeholder="Search students, classes, IDs…"
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && q.trim()) {
+              navigate('/students?q=' + encodeURIComponent(q.trim()))
+              setQ('')
+            }
+          }}
+        />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {right}

@@ -569,4 +569,247 @@ class AdminController
 
         json_out(['month' => $month, 'daily' => $daily, 'courses' => $courses]);
     }
+
+    /** GET /admin/badge-counts */
+    public static function badgeCounts(): void
+    {
+        require_admin();
+        $pdo   = db();
+        $today = date('Y-m-d');
+
+        $ciStmt = $pdo->prepare(
+            "SELECT COUNT(DISTINCT student_id) FROM attendance_records
+             WHERE record_date = ? AND status IN ('present','late')"
+        );
+        $ciStmt->execute([$today]);
+
+        $lvStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM leave_requests WHERE status = 'pending'"
+        );
+        $lvStmt->execute([]);
+
+        json_out([
+            'todayCheckins' => (int) $ciStmt->fetchColumn(),
+            'totalStudents' => (int) $pdo->query("SELECT COUNT(*) FROM students WHERE is_active = 1")->fetchColumn(),
+            'pendingLeave'  => (int) $lvStmt->fetchColumn(),
+        ]);
+    }
+
+    /** GET /admin/teachers */
+    public static function teachers(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT id, CONCAT(first_name,' ',last_name) AS name, email
+             FROM users WHERE school_id = ? AND role IN ('teacher','vice_principal','admin')
+             AND is_active = 1 ORDER BY last_name, first_name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** GET /admin/departments */
+    public static function departments(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT d.id, d.name,
+                    CONCAT(u.first_name,' ',u.last_name) AS head
+             FROM departments d LEFT JOIN users u ON u.id = d.head_user_id
+             WHERE d.school_id = ? ORDER BY d.name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** GET /admin/rooms */
+    public static function rooms(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT id, code, name, building, capacity
+             FROM rooms WHERE school_id = ? ORDER BY name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** GET /admin/courses */
+    public static function courses(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT c.id, c.code, c.name, c.term, c.color_hue AS colorHue,
+                    d.name AS department,
+                    CONCAT(u.first_name,' ',u.last_name) AS teacher,
+                    r.name AS room,
+                    (SELECT COUNT(*) FROM course_enrollments ce
+                     WHERE ce.course_id = c.id AND ce.dropped_at IS NULL) AS enrolled
+             FROM courses c
+             LEFT JOIN departments d ON d.id = c.department_id
+             LEFT JOIN users u ON u.id = c.teacher_id
+             LEFT JOIN rooms r ON r.id = c.room_id
+             WHERE c.school_id = ? AND c.is_active = 1
+             ORDER BY c.name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** POST /admin/courses */
+    public static function createCourse(): void
+    {
+        $user  = require_admin();
+        $sid   = (int) ($user['school_id'] ?? 1);
+        $body  = body();
+
+        $code      = trim((string) required_field($body, 'code'));
+        $name      = trim((string) required_field($body, 'name'));
+        $term      = trim((string) ($body['term']         ?? 'Current'));
+        $deptId    = !empty($body['departmentId'])  ? (int) $body['departmentId']  : null;
+        $teacherId = !empty($body['teacherId'])     ? (int) $body['teacherId']     : null;
+        $roomId    = !empty($body['roomId'])        ? (int) $body['roomId']        : null;
+        $colorHue  = isset($body['colorHue'])       ? (int) $body['colorHue']      : rand(0, 360);
+
+        $dup = db()->prepare('SELECT id FROM courses WHERE code = ? AND school_id = ? LIMIT 1');
+        $dup->execute([$code, $sid]);
+        if ($dup->fetch()) error_out('Course code already exists', 409);
+
+        db()->prepare(
+            'INSERT INTO courses (school_id, code, name, department_id, teacher_id,
+                                  room_id, term, color_hue, is_active)
+             VALUES (?,?,?,?,?,?,?,?,1)'
+        )->execute([$sid, $code, $name, $deptId, $teacherId, $roomId, $term, $colorHue]);
+
+        json_out(['id' => (int) db()->lastInsertId(), 'code' => $code, 'name' => $name], 201);
+    }
+
+    /** GET /admin/offline-queue */
+    public static function offlineQueue(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $pdo  = db();
+
+        $devStmt = $pdo->prepare(
+            "SELECT device_label AS label, device_type AS type,
+                    queued_count AS queued, oldest_event AS oldestEvent,
+                    last_sync_at AS lastSync
+             FROM v_offline_queue_summary WHERE school_id = ? ORDER BY queued_count DESC"
+        );
+        $devStmt->execute([$sid]);
+
+        $qStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM offline_queue WHERE school_id = ? AND status = 'queued'"
+        );
+        $qStmt->execute([$sid]);
+
+        $onStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM devices
+             WHERE school_id = ? AND is_active = 1
+               AND last_online_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)"
+        );
+        $onStmt->execute([$sid]);
+
+        $logStmt = $pdo->prepare(
+            "SELECT sl.id, d.label AS device, d.type AS deviceType,
+                    sl.started_at AS startedAt, sl.completed_at AS completedAt,
+                    sl.events_synced AS synced, sl.events_conflict AS conflicts, sl.status
+             FROM sync_logs sl
+             JOIN devices d ON d.id = sl.device_id
+             WHERE d.school_id = ? ORDER BY sl.started_at DESC LIMIT 20"
+        );
+        $logStmt->execute([$sid]);
+
+        json_out([
+            'totalQueued'   => (int) $qStmt->fetchColumn(),
+            'devicesOnline' => (int) $onStmt->fetchColumn(),
+            'devices'       => $devStmt->fetchAll(),
+            'recentSyncs'   => $logStmt->fetchAll(),
+        ]);
+    }
+
+    /** GET /admin/notification-rules */
+    public static function notificationRules(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT id, event_type AS eventType, threshold,
+                    notify_admin AS notifyAdmin,
+                    notify_teacher AS notifyTeacher,
+                    notify_guardian_email AS notifyGuardianEmail,
+                    notify_guardian_sms AS notifyGuardianSms,
+                    is_active AS isActive
+             FROM notification_rules WHERE school_id = ? ORDER BY event_type"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** PATCH /admin/notification-rules/:id */
+    public static function updateNotificationRule(string $id): void
+    {
+        $user   = require_admin();
+        $sid    = (int) ($user['school_id'] ?? 1);
+        $body   = body();
+        $ruleId = (int) $id;
+
+        $map = [
+            'notifyAdmin'         => 'notify_admin',
+            'notifyTeacher'       => 'notify_teacher',
+            'notifyGuardianEmail' => 'notify_guardian_email',
+            'notifyGuardianSms'   => 'notify_guardian_sms',
+            'isActive'            => 'is_active',
+        ];
+        $sets   = [];
+        $params = [];
+
+        foreach ($map as $jsKey => $dbCol) {
+            if (array_key_exists($jsKey, $body)) {
+                $sets[]   = "{$dbCol} = ?";
+                $params[] = (int) (bool) $body[$jsKey];
+            }
+        }
+        if (isset($body['threshold'])) {
+            $sets[]   = 'threshold = ?';
+            $params[] = (int) $body['threshold'];
+        }
+        if (empty($sets)) error_out('Nothing to update');
+
+        $params[] = $ruleId;
+        $params[] = $sid;
+        db()->prepare(
+            "UPDATE notification_rules SET " . implode(', ', $sets) .
+            " WHERE id = ? AND school_id = ?"
+        )->execute($params);
+
+        json_out(['ok' => true]);
+    }
+
+    /** PATCH /admin/attendance/:id */
+    public static function updateAttendance(string $id): void
+    {
+        $user   = require_admin();
+        $recId  = (int) $id;
+        $body   = body();
+        $status = trim((string) ($body['status'] ?? ''));
+        $notes  = trim((string) ($body['notes']  ?? ''));
+
+        if (!in_array($status, ['present', 'late', 'absent', 'excused'], true)) {
+            error_out('Invalid status. Must be present, late, absent, or excused.');
+        }
+
+        db()->prepare(
+            "UPDATE attendance_records
+             SET status = ?, reviewed_by = ?, reviewed_at = NOW(), notes = ?
+             WHERE id = ?"
+        )->execute([$status, (int) $user['sub'], $notes ?: null, $recId]);
+
+        json_out(['id' => $recId, 'status' => $status]);
+    }
 }

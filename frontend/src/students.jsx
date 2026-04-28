@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from './api'
 import { I } from './icons'
 import { Sidebar, TopBar } from './shell'
@@ -155,8 +155,9 @@ function StudentDrawer({ studentDbId, onClose }) {
 
 export function StudentList() {
   const navigate = useNavigate()
+  const [urlParams]   = useSearchParams()
 
-  const [search,       setSearch]       = useState('')
+  const [search,       setSearch]       = useState(() => urlParams.get('q') ?? '')
   const [gradeFilter,  setGradeFilter]  = useState('all')
   const [grades,       setGrades]       = useState([])
   const [students,     setStudents]     = useState([])
