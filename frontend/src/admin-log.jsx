@@ -45,6 +45,20 @@ function AttendanceLog() {
 
   const grades = ['10A', '10B', '11A', '11B', '12A', '12B']
 
+  const exportCSV = () => {
+    const header = 'Student,ID,Grade,Time,Method,Status,Location,Camera,Confidence'
+    const lines = rows.map(r => [
+      `"${r.name ?? ''}"`, r.id ?? '', r.grade ?? '', r.time ?? '',
+      r.method ?? '', r.status ?? '', r.location ?? '', r.camera ?? '',
+      r.conf != null ? (r.conf * 100).toFixed(1) + '%' : '',
+    ].join(','))
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `attendance-${date}.csv`
+    a.click()
+  }
+
   return (
     <div className="fm-screen" data-screen-label="Attendance Log">
       <Sidebar />
@@ -64,7 +78,7 @@ function AttendanceLog() {
                 onChange={e => setDate(e.target.value)}
                 style={{width:160}}
               />
-              <button className="fm-btn"><I.Export size={14}/> Export CSV</button>
+              <button className="fm-btn" onClick={exportCSV}><I.Export size={14}/> Export CSV</button>
             </div>
           </div>
 

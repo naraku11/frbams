@@ -39,6 +39,19 @@ export function StudentList() {
     rate:  (s.attendanceRate ?? 0) / 100,
   }))
 
+  const exportCSV = () => {
+    const header = 'Name,ID,Grade,Attendance %'
+    const lines = rows.map(r => [
+      `"${r.name ?? ''}"`, r.id ?? '', r.grade ?? '',
+      Math.round(r.rate * 100) + '%',
+    ].join(','))
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `students-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+  }
+
   return (
     <div className="fm-screen" data-screen-label="Students">
       <Sidebar />
@@ -52,7 +65,7 @@ export function StudentList() {
               <div className="fm-muted" style={{ marginTop: 6, fontSize: 14 }}>{total} enrolled</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="fm-btn"><I.Export size={14} /> Export</button>
+              <button className="fm-btn" onClick={exportCSV}><I.Export size={14} /> Export</button>
               <button className="fm-btn primary"><I.Plus size={14} /> Enroll student</button>
             </div>
           </div>

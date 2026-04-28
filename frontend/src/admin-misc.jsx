@@ -7,6 +7,29 @@ import { THEMES, getSavedTheme, saveTheme } from './theme'
 
 
 function Enrollment() {
+  const [grades,  setGrades]  = React.useState([])
+  const [form,    setForm]    = React.useState({ firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' })
+  const [saving,  setSaving]  = React.useState(false)
+  const [done,    setDone]    = React.useState(null)
+  const [error,   setError]   = React.useState('')
+
+  React.useEffect(() => { api.grades().then(setGrades).catch(() => {}) }, [])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const submit = async () => {
+    if (!form.firstName || !form.lastName || !form.studentCode || !form.gradeLabel) {
+      setError('Please fill in all required fields.'); return
+    }
+    setSaving(true); setError('')
+    try {
+      const res = await api.enrollStudent(form)
+      setDone(res)
+      setForm({ firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' })
+    } catch (e) { setError(e.message) }
+    finally { setSaving(false) }
+  }
+
   return (
     <div className="fm-screen" data-screen-label="Enrollment">
       <Sidebar />
@@ -14,99 +37,71 @@ function Enrollment() {
         <TopBar />
         <div className="fm-content">
           <div style={{marginBottom:24}}>
-            <div className="fm-eyebrow" style={{marginBottom:8}}>Step 2 of 3 · Capture</div>
+            <div className="fm-eyebrow" style={{marginBottom:8}}>Admin · Enrollment</div>
             <h1 className="fm-h1">Enroll a new student</h1>
             <div className="fm-muted" style={{marginTop:6}}>
-              We'll capture 5 angles to build a robust face template. Templates are encrypted at rest.
+              Fill in the student details below. A default password of <span className="mono">Student@1234</span> will be assigned.
             </div>
           </div>
 
-          <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:20}}>
-            <div className="fm-card" style={{padding:0, overflow:"hidden", aspectRatio:"4/3", position:"relative", background:"#0A0B08"}}>
+          <div style={{maxWidth:520}}>
+            {done && (
               <div style={{
-                position:"absolute", inset:0,
-                background:`radial-gradient(400px 500px at 50% 60%, oklch(0.40 0.04 90), transparent 70%)`,
-              }}/>
-              <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" style={{position:"absolute", inset:0}}>
-                <ellipse cx="200" cy="135" rx="65" ry="80" fill="#3a3a32"/>
-                <path d="M 110 300 Q 110 220 200 215 Q 290 220 290 300 Z" fill="#1f211b"/>
-              </svg>
-
-              <div style={{
-                position:"absolute", left:"50%", top:"45%", transform:"translate(-50%, -50%)",
-                width:240, height:300, border:"2px dashed var(--accent)",
-                borderRadius:"50% / 45%",
-              }}/>
-
-              <div style={{
-                position:"absolute", top:18, left:18,
-                display:"inline-flex", gap:6, alignItems:"center",
-                padding:"5px 11px", borderRadius:99,
-                background:"rgba(0,0,0,0.6)", color:"white",
-                fontFamily:"var(--mono)", fontSize:11,
+                marginBottom:16, padding:'14px 18px', borderRadius:10,
+                background:'var(--accent-soft)', border:'1px solid var(--accent)',
+                fontSize:13, lineHeight:1.5,
               }}>
-                <span style={{width:6, height:6, background:"var(--red)", borderRadius:"50%"}}/>
-                REC · 00:04
+                <b style={{fontWeight:600}}>Enrolled:</b> {done.name} · <span className="mono">{done.studentCode}</span> · {done.grade}
+                <button className="fm-btn" style={{marginLeft:14, fontSize:11}} onClick={() => setDone(null)}>Enroll another</button>
               </div>
+            )}
 
-              <div style={{
-                position:"absolute", bottom:20, left:20, right:20,
-                display:"flex", gap:8,
-              }}>
-                {["Front","Left ¼","Right ¼","Up","Down"].map((a, i) => (
-                  <div key={a} style={{
-                    flex:1, padding:"10px 12px", borderRadius:8,
-                    background: i < 2 ? "var(--accent)" : "rgba(255,255,255,0.08)",
-                    color: i < 2 ? "#000" : "rgba(255,255,255,0.7)",
-                    fontFamily:"var(--mono)", fontSize:11, fontWeight:600,
-                    display:"flex", justifyContent:"space-between", alignItems:"center",
-                  }}>
-                    <span>{a}</span>
-                    {i < 2 ? <I.Check size={13} /> : i === 2 ? <span style={{width:6, height:6, background:"white", borderRadius:"50%"}}/> : null}
+            <div className="fm-card">
+              <h3 className="fm-h3" style={{marginBottom:14}}>Student details</h3>
+              <div style={{display:"grid", gap:12}}>
+                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+                  <div>
+                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>First name <span style={{color:"var(--red)"}}>*</span></div>
+                    <input className="fm-input" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="e.g. Juan" />
                   </div>
-                ))}
+                  <div>
+                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Last name <span style={{color:"var(--red)"}}>*</span></div>
+                    <input className="fm-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="e.g. Dela Cruz" />
+                  </div>
+                </div>
+                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+                  <div>
+                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Student ID <span style={{color:"var(--red)"}}>*</span></div>
+                    <input className="fm-input mono" value={form.studentCode} onChange={e => set('studentCode', e.target.value)} placeholder="e.g. S2025-001" />
+                  </div>
+                  <div>
+                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Grade <span style={{color:"var(--red)"}}>*</span></div>
+                    <select className="fm-input" value={form.gradeLabel} onChange={e => set('gradeLabel', e.target.value)}>
+                      <option value="">Select grade…</option>
+                      {grades.map(g => <option key={g.id} value={g.label}>{g.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Guardian email <span className="fm-muted">(optional)</span></div>
+                  <input className="fm-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="guardian@example.com" />
+                </div>
               </div>
             </div>
 
-            <div style={{display:"flex", flexDirection:"column", gap:16}}>
-              <div className="fm-card">
-                <h3 className="fm-h3" style={{marginBottom:14}}>Student details</h3>
-                <div style={{display:"grid", gap:12}}>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Full name</div>
-                    <input className="fm-input" defaultValue="Sana Khoury" />
-                  </div>
-                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-                    <div>
-                      <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Student ID</div>
-                      <input className="fm-input mono" defaultValue="S2436" />
-                    </div>
-                    <div>
-                      <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Grade</div>
-                      <select className="fm-input"><option>11B</option></select>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Guardian email</div>
-                    <input className="fm-input" defaultValue="t.khoury@example.com" />
-                  </div>
-                </div>
+            {error && (
+              <div style={{marginTop:10, padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5}}>
+                {error}
               </div>
+            )}
 
-              <div className="fm-card">
-                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}}>
-                  <h3 className="fm-h3">Consent & privacy</h3>
-                  <span className="fm-pill ok">Signed</span>
-                </div>
-                <div className="fm-muted" style={{fontSize:12, lineHeight:1.5}}>
-                  Guardian has signed the biometric consent form (v3.2, Apr 2026). Template stored as encrypted vector — no raw image is retained after enrollment.
-                </div>
-              </div>
-
-              <div style={{display:"flex", gap:8, justifyContent:"flex-end"}}>
-                <button className="fm-btn">Cancel</button>
-                <button className="fm-btn primary">Capture next angle <I.Arrow size={13}/></button>
-              </div>
+            <div style={{display:"flex", gap:8, justifyContent:"flex-end", marginTop:14}}>
+              <button className="fm-btn" onClick={() => { setForm({ firstName:'', lastName:'', studentCode:'', gradeLabel:'', email:'' }); setError('') }}>
+                Clear
+              </button>
+              <button className="fm-btn primary" disabled={saving} onClick={submit}>
+                {saving ? 'Enrolling…' : <><I.Check size={13}/> Enroll student</>}
+              </button>
             </div>
           </div>
         </div>
@@ -411,6 +406,28 @@ function SettingsAppearance() {
 }
 
 function SettingsRecognition() {
+  const [cfg, setCfg] = React.useState(null)
+
+  React.useEffect(() => {
+    api.recognitionSettings().then(setCfg).catch(() => {})
+  }, [])
+
+  const save = (patch) => {
+    const next = { ...cfg, ...patch }
+    setCfg(next)
+    api.saveRecognitionSettings(next).catch(() => {})
+  }
+
+  const threshold = cfg?.confidenceThreshold ?? 96
+
+  const toggleRows = [
+    { key: 'livenessDetection',  label: 'Liveness detection',   desc: 'Detect printed photos and screen replays' },
+    { key: 'maskTolerance',      label: 'Mask tolerance',        desc: 'Allow recognition with surgical/cloth masks' },
+    { key: 'multiAngleTemplate', label: 'Multi-angle template',  desc: 'Use 5-angle template for outdoor cameras' },
+    { key: 'autoRetrain',        label: 'Auto re-train',         desc: 'Refresh templates monthly from passing frames' },
+    { key: 'anonymousMetrics',   label: 'Anonymous metrics',     desc: 'Send aggregate accuracy data to FRBAMS Cloud' },
+  ]
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="fm-card">
@@ -419,31 +436,32 @@ function SettingsRecognition() {
           Below this confidence, the system asks for a PIN fallback.
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <input type="range" min="80" max="99.9" step="0.1" defaultValue="96"
-            style={{ flex: 1, accentColor: 'var(--accent)' }} />
-          <div className="mono" style={{ fontSize: 18, fontWeight: 600, width: 60, textAlign: 'right' }}>96.0%</div>
+          <input
+            type="range" min="80" max="99.9" step="0.1"
+            value={threshold}
+            onChange={e => save({ confidenceThreshold: parseFloat(e.target.value) })}
+            style={{ flex: 1, accentColor: 'var(--accent)' }}
+          />
+          <div className="mono" style={{ fontSize: 18, fontWeight: 600, width: 60, textAlign: 'right' }}>
+            {Number(threshold).toFixed(1)}%
+          </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--fg-4)' }}>
           <span>Permissive</span><span>Recommended</span><span>Strict</span>
         </div>
       </div>
       <div className="fm-card" style={{ padding: 0 }}>
-        {[
-          ['Liveness detection',    'Detect printed photos and screen replays',           'on'],
-          ['Mask tolerance',        'Allow recognition with surgical/cloth masks',        'on'],
-          ['Multi-angle template',  'Use 5-angle template for outdoor cameras',           'on'],
-          ['Auto re-train',         'Refresh templates monthly from passing frames',      'off'],
-          ['Anonymous metrics',     'Send aggregate accuracy data to FRBAMS Cloud',      'off'],
-        ].map((row, i, arr) => (
-          <div key={i} style={{
+        {toggleRows.map((row, i, arr) => (
+          <div key={row.key} style={{
             padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
-          }}>
+            cursor: cfg ? 'pointer' : 'default',
+          }} onClick={() => cfg && save({ [row.key]: !cfg[row.key] })}>
             <div>
-              <div style={{ fontWeight: 500, fontSize: 13.5 }}>{row[0]}</div>
-              <div className="fm-muted" style={{ fontSize: 12, marginTop: 2 }}>{row[1]}</div>
+              <div style={{ fontWeight: 500, fontSize: 13.5 }}>{row.label}</div>
+              <div className="fm-muted" style={{ fontSize: 12, marginTop: 2 }}>{row.desc}</div>
             </div>
-            <div className={`fm-toggle ${row[2] === 'on' ? 'on' : ''}`} />
+            <div className={`fm-toggle ${cfg?.[row.key] ? 'on' : ''}`} />
           </div>
         ))}
       </div>
@@ -452,31 +470,45 @@ function SettingsRecognition() {
 }
 
 function SettingsCameras() {
+  const [cameras, setCameras] = React.useState(null)
+
+  React.useEffect(() => {
+    api.cameras().then(setCameras).catch(() => setCameras([]))
+  }, [])
+
   return (
     <div className="fm-card">
       <h3 className="fm-h3" style={{ marginBottom: 14 }}>Camera network</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-        {[
-          ['Main · A1',    'Online',        '99%'],
-          ['North · B2',   'Online',        '98%'],
-          ['East · C1',    'Recalibrating', '—'],
-          ['Library · D2', 'Online',        '97%'],
-        ].map(([n, s, q]) => (
-          <div key={n} style={{
-            padding: 12, border: '1px solid var(--line)', borderRadius: 8,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{n}</div>
-              <div className="mono fm-muted" style={{ fontSize: 11, marginTop: 2 }}>{s}</div>
-            </div>
-            <div className="mono" style={{
-              fontSize: 13,
-              color: s === 'Online' ? 'oklch(0.5 0.16 145)' : 'var(--amber)',
-            }}>{q}</div>
-          </div>
-        ))}
-      </div>
+      {cameras === null ? (
+        <div className="fm-muted" style={{ fontSize: 13 }}>Loading…</div>
+      ) : cameras.length === 0 ? (
+        <div className="fm-muted" style={{ fontSize: 13 }}>No cameras configured.</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          {cameras.map(c => {
+            const isOnline = c.status === 'online'
+            const quality  = c.quality != null ? `${Math.round(c.quality * 100)}%` : '—'
+            return (
+              <div key={c.id} style={{
+                padding: 12, border: '1px solid var(--line)', borderRadius: 8,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{c.label}</div>
+                  <div className="mono fm-muted" style={{ fontSize: 11, marginTop: 2 }}>
+                    {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
+                    {c.room ? ` · ${c.room}` : ''}
+                  </div>
+                </div>
+                <div className="mono" style={{
+                  fontSize: 13,
+                  color: isOnline ? 'oklch(0.5 0.16 145)' : 'var(--amber)',
+                }}>{quality}</div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

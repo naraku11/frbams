@@ -268,6 +268,224 @@ class AdminController
         json_out(['id' => $id, 'status' => $status]);
     }
 
+    /** GET /admin/notifications?limit=50&type= */
+    public static function notifications(): void
+    {
+        require_admin();
+        $limit = min(100, max(1, (int) ($_GET['limit'] ?? 50)));
+        $type  = $_GET['type'] ?? '';
+
+        $pdo   = db();
+        $today = date('Y-m-d');
+
+        $absentStmt = $pdo->prepare(
+            "SELECT 'absent' AS type,
+                    CONCAT(s.first_name,' ',s.last_name) AS who,
+                    'marked absent today' AS text,
+                    s.student_code AS studentCode,
+                    ar.created_at AS ts
+             FROM   attendance_records ar
+             JOIN   students s ON s.id = ar.student_id
+             WHERE  ar.status = 'absent' AND ar.record_date = ?
+             ORDER  BY ar.created_at DESC LIMIT 20"
+        );
+        $absentStmt->execute([$today]);
+
+        $lateStmt = $pdo->prepare(
+            "SELECT 'late' AS type,
+                    CONCAT(s.first_name,' ',s.last_name) AS who,
+                    CONCAT('arrived ',TIME_FORMAT(ar.check_in_time,'%H:%i'),' late') AS text,
+                    s.student_code AS studentCode,
+                    ar.check_in_time AS ts
+             FROM   attendance_records ar
+             JOIN   students s ON s.id = ar.student_id
+             WHERE  ar.status = 'late' AND ar.record_date = ?
+             ORDER  BY ar.check_in_time DESC LIMIT 20"
+        );
+        $lateStmt->execute([$today]);
+
+        $leaveStmt = $pdo->prepare(
+            "SELECT 'leave' AS type,
+                    CONCAT(s.first_name,' ',s.last_name) AS who,
+                    CONCAT('submitted leave for ',DATE_FORMAT(lr.date_from,'%b %d')) AS text,
+                    s.student_code AS studentCode,
+                    lr.submitted_at AS ts
+             FROM   leave_requests lr
+             JOIN   students s ON s.id = lr.student_id
+             WHERE  lr.status = 'pending'
+             ORDER  BY lr.submitted_at DESC LIMIT 20"
+        );
+        $leaveStmt->execute([]);
+
+        $camStmt = $pdo->query(
+            "SELECT 'system' AS type,
+                    CONCAT('Camera: ',label) AS who,
+                    CONCAT(status,' detected') AS text,
+                    NULL AS studentCode,
+                    last_seen_at AS ts
+             FROM   cameras
+             WHERE  status != 'online'
+             ORDER  BY last_seen_at DESC LIMIT 5"
+        );
+
+        $all = array_merge(
+            $absentStmt->fetchAll(),
+            $lateStmt->fetchAll(),
+            $leaveStmt->fetchAll(),
+            $camStmt->fetchAll()
+        );
+
+        usort($all, fn($a, $b) => strcmp((string) ($b['ts'] ?? ''), (string) ($a['ts'] ?? '')));
+
+        if ($type !== '') {
+            $all = array_values(array_filter($all, fn($n) => $n['type'] === $type));
+        }
+
+        json_out(array_slice($all, 0, $limit));
+    }
+
+    /** GET /admin/cameras */
+    public static function cameras(): void
+    {
+        require_admin();
+        $stmt = db()->query(
+            "SELECT c.id, c.code, c.label, c.location, c.status,
+                    c.quality_score AS quality, c.last_seen_at AS lastSeen,
+                    r.name AS room
+             FROM   cameras c
+             LEFT JOIN rooms r ON r.id = c.room_id
+             ORDER  BY c.label"
+        );
+        json_out($stmt->fetchAll());
+    }
+
+    /** GET /admin/grades */
+    public static function grades(): void
+    {
+        require_admin();
+        $stmt = db()->query(
+            'SELECT id, label FROM grades WHERE is_active = 1 ORDER BY label'
+        );
+        json_out($stmt->fetchAll());
+    }
+
+    /** POST /admin/students — enroll a new student */
+    public static function enrollStudent(): void
+    {
+        $user     = require_admin();
+        $schoolId = (int) ($user['school_id'] ?? 1);
+        $body     = body();
+
+        $firstName   = trim((string) required_field($body, 'firstName'));
+        $lastName    = trim((string) required_field($body, 'lastName'));
+        $studentCode = trim((string) required_field($body, 'studentCode'));
+        $gradeLabel  = trim((string) required_field($body, 'gradeLabel'));
+        $email       = trim((string) ($body['email'] ?? ''));
+
+        $gStmt = db()->prepare(
+            'SELECT id FROM grades WHERE label = ? AND school_id = ? LIMIT 1'
+        );
+        $gStmt->execute([$gradeLabel, $schoolId]);
+        $grade = $gStmt->fetch();
+        if (!$grade) {
+            error_out('Grade not found', 404);
+        }
+
+        $dupStmt = db()->prepare(
+            'SELECT id FROM students WHERE student_code = ? LIMIT 1'
+        );
+        $dupStmt->execute([$studentCode]);
+        if ($dupStmt->fetch()) {
+            error_out('Student code already exists', 409);
+        }
+
+        $hash = password_hash('Student@1234', PASSWORD_BCRYPT);
+
+        db()->prepare(
+            'INSERT INTO students
+               (school_id, student_code, first_name, last_name, email,
+                grade_id, password_hash, is_active, enrolled_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())'
+        )->execute([
+            $schoolId, $studentCode, $firstName, $lastName,
+            $email !== '' ? $email : null,
+            (int) $grade['id'], $hash,
+        ]);
+
+        json_out([
+            'studentCode' => $studentCode,
+            'name'        => "{$firstName} {$lastName}",
+            'grade'       => $gradeLabel,
+        ], 201);
+    }
+
+    /** GET /admin/settings/recognition */
+    public static function recognitionSettings(): void
+    {
+        $user     = require_admin();
+        $schoolId = (int) ($user['school_id'] ?? 1);
+
+        $stmt = db()->prepare(
+            'SELECT * FROM recognition_settings WHERE school_id = ? LIMIT 1'
+        );
+        $stmt->execute([$schoolId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            json_out([
+                'confidenceThreshold' => 96.0,
+                'livenessDetection'   => true,
+                'maskTolerance'       => true,
+                'multiAngleTemplate'  => true,
+                'autoRetrain'         => false,
+                'anonymousMetrics'    => false,
+            ]);
+            return;
+        }
+
+        json_out([
+            'confidenceThreshold' => (float) $row['confidence_threshold'],
+            'livenessDetection'   => (bool)  $row['liveness_detection'],
+            'maskTolerance'       => (bool)  $row['mask_tolerance'],
+            'multiAngleTemplate'  => (bool)  $row['multi_angle_template'],
+            'autoRetrain'         => (bool)  $row['auto_retrain'],
+            'anonymousMetrics'    => (bool)  $row['anonymous_metrics'],
+        ]);
+    }
+
+    /** PATCH /admin/settings/recognition */
+    public static function saveRecognitionSettings(): void
+    {
+        $user     = require_admin();
+        $schoolId = (int) ($user['school_id'] ?? 1);
+        $body     = body();
+
+        db()->prepare(
+            'INSERT INTO recognition_settings
+               (school_id, confidence_threshold, liveness_detection, mask_tolerance,
+                multi_angle_template, auto_retrain, anonymous_metrics, updated_at)
+             VALUES (?,?,?,?,?,?,?, NOW())
+             ON DUPLICATE KEY UPDATE
+               confidence_threshold = VALUES(confidence_threshold),
+               liveness_detection   = VALUES(liveness_detection),
+               mask_tolerance       = VALUES(mask_tolerance),
+               multi_angle_template = VALUES(multi_angle_template),
+               auto_retrain         = VALUES(auto_retrain),
+               anonymous_metrics    = VALUES(anonymous_metrics),
+               updated_at           = NOW()'
+        )->execute([
+            $schoolId,
+            (float) ($body['confidenceThreshold'] ?? 96.0),
+            (int)   ($body['livenessDetection']   ?? 1),
+            (int)   ($body['maskTolerance']        ?? 1),
+            (int)   ($body['multiAngleTemplate']   ?? 1),
+            (int)   ($body['autoRetrain']          ?? 0),
+            (int)   ($body['anonymousMetrics']     ?? 0),
+        ]);
+
+        json_out(['ok' => true]);
+    }
+
     /** GET /admin/reports?month=2026-04 */
     public static function reports(): void
     {

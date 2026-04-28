@@ -1,13 +1,14 @@
 // admin-dashboard.jsx — main analytics dashboard
 import React from 'react'
-import { NOTIFICATIONS } from './data'
 import { api } from './api'
 import { I } from './icons'
 import { Sidebar, TopBar } from './shell'
 
 export function Dashboard({ layout = "sidebar" }) {
-  const [data, setData] = React.useState(null)
+  const [data,   setData]   = React.useState(null)
+  const [alerts, setAlerts] = React.useState([])
   React.useEffect(() => { api.dashboard().then(setData).catch(() => {}) }, [])
+  React.useEffect(() => { api.notifications({ limit: 4 }).then(setAlerts).catch(() => {}) }, [])
 
   const stats   = data?.stats   ?? {}
   const recent  = data?.recent  ?? []
@@ -166,17 +167,21 @@ export function Dashboard({ layout = "sidebar" }) {
                 <h2 className="fm-h2">Alerts</h2>
               </div>
               <div style={{display:"flex", flexDirection:"column", gap:14}}>
-                {NOTIFICATIONS.slice(0,4).map((n, i) => (
+                {alerts.length === 0 ? (
+                  <div className="fm-muted" style={{fontSize:12.5}}>No alerts today.</div>
+                ) : alerts.map((n, i) => (
                   <div key={i} style={{display:"flex", gap:10}}>
                     <div style={{
                       width:8, height:8, borderRadius:"50%", marginTop:6, flexShrink:0,
                       background: n.type === "absent" ? "var(--red)" :
-                                  n.type === "late" ? "var(--amber)" :
-                                  n.type === "ok" ? "var(--accent)" : "var(--fg-4)",
+                                  n.type === "late"   ? "var(--amber)" :
+                                  n.type === "ok"     ? "var(--accent)" : "var(--fg-4)",
                     }}/>
                     <div style={{fontSize:12.5, lineHeight:1.4}}>
                       <div><b style={{fontWeight:600}}>{n.who}</b> <span className="fm-muted">{n.text}</span></div>
-                      <div className="mono fm-muted" style={{fontSize:10.5, marginTop:2}}>{n.time}</div>
+                      <div className="mono fm-muted" style={{fontSize:10.5, marginTop:2}}>
+                        {n.ts ? new Date(n.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}
+                      </div>
                     </div>
                   </div>
                 ))}
