@@ -2,11 +2,10 @@ import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './login'
 import { Dashboard } from './admin-dashboard'
-import { KioskWelcoming, KioskScanning, KioskClassroom } from './admin-kiosk'
 import { AttendanceLog } from './admin-log'
 import { Enrollment, Reports, Settings, LeaveRequests } from './admin-misc'
 import { NotificationsScreen } from './notifications'
-import { Subjects, OfflineSync, CourseManager, KioskOffline } from './extras'
+import { Subjects, OfflineSync, CourseManager } from './extras'
 import { StudentList } from './students'
 
 function Guard({ children }) {
@@ -14,29 +13,6 @@ function Guard({ children }) {
   return authed ? children : <Navigate to="/login" replace />
 }
 
-function KioskPage() {
-  const [variant, setVariant] = React.useState('welcoming')
-  const Comp = variant === 'scanning' ? KioskScanning : variant === 'classroom' ? KioskClassroom : KioskWelcoming
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{
-        display: 'flex', gap: 8, padding: '10px 20px', borderBottom: '1px solid var(--line)',
-        background: 'var(--bg)', alignItems: 'center',
-      }}>
-        <span className="fm-muted" style={{ fontSize: 12 }}>Kiosk view:</span>
-        {['welcoming', 'scanning', 'classroom', 'offline'].map(v => (
-          <button key={v} className={`fm-btn${variant === v ? ' dark' : ''}`} style={{ fontSize: 12, padding: '5px 12px' }}
-            onClick={() => setVariant(v)}>
-            {v}
-          </button>
-        ))}
-      </div>
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        {variant === 'offline' ? <KioskOffline /> : <Comp />}
-      </div>
-    </div>
-  )
-}
 
 export default function App() {
   return (
@@ -45,7 +21,6 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Guard><Navigate to="/dashboard" replace /></Guard>} />
         <Route path="/dashboard" element={<Guard><Dashboard /></Guard>} />
-        <Route path="/kiosk"     element={<Guard><KioskPage /></Guard>} />
         <Route path="/log"       element={<Guard><AttendanceLog /></Guard>} />
         <Route path="/students"  element={<Guard><StudentList /></Guard>} />
         <Route path="/enroll"    element={<Guard><Enrollment /></Guard>} />

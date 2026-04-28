@@ -57,7 +57,6 @@ export function Dashboard({ layout = "sidebar" }) {
             </div>
             <div style={{display:"flex", gap:8}}>
               <button className="fm-btn" onClick={exportDay}><I.Export size={14}/> Export day</button>
-              <button className="fm-btn primary" onClick={() => navigate('/kiosk')}><I.Camera size={14}/> Open kiosk</button>
             </div>
           </div>
 

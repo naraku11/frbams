@@ -6,7 +6,6 @@ import { api } from './api'
 
 const NAV_DEFS = [
   { label: 'Dashboard',      icon: 'Home',    to: '/dashboard' },
-  { label: 'Live Capture',   icon: 'Camera',  to: '/kiosk' },
   { label: 'Attendance Log', icon: 'Log',     to: '/log',      badgeKey: 'todayCheckins' },
   { label: 'Students',       icon: 'Users',   to: '/students', badgeKey: 'totalStudents' },
   { label: 'Enrollment',     icon: 'Face',    to: '/enroll' },
