@@ -18,7 +18,7 @@ loadEnv(__DIR__ . '/.env');
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
-$origin  = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
+$origin  = preg_replace('/[\r\n]/', '', rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/'));
 $allowed = array_filter(array_map(
     fn($u) => rtrim((string) $u, '/'),
     [

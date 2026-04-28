@@ -19,6 +19,9 @@ class AttendanceController
         if (!in_array($method, ['face', 'pin'], true)) {
             error_out('method must be "face" or "pin"');
         }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/', $capturedAt)) {
+            error_out('Invalid capturedAt format. Use YYYY-MM-DDTHH:MM:SS.');
+        }
 
         $confidence   = isset($body['confidence'])        ? (float) $body['confidence']        : null;
         $lat          = isset($body['locationLat'])        ? (float) $body['locationLat']        : null;
@@ -148,7 +151,7 @@ class AttendanceController
             $lat        = isset($ev['locationLat'])  ? (float) $ev['locationLat']  : null;
             $lng        = isset($ev['locationLng'])  ? (float) $ev['locationLng']  : null;
 
-            if (!$capturedAt || !in_array($method, ['face', 'pin'], true)) {
+            if (!$capturedAt || !preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/', $capturedAt) || !in_array($method, ['face', 'pin'], true)) {
                 $conflicts++;
                 continue;
             }

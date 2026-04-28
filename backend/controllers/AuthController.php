@@ -11,6 +11,10 @@ class AuthController
         $email    = trim((string) required_field($body, 'email'));
         $password = (string) required_field($body, 'password');
 
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            error_out('Invalid email or password', 401);
+        }
+
         $pdo  = db();
         $stmt = $pdo->prepare(
             'SELECT s.id, s.school_id, s.student_code, s.first_name, s.last_name, s.email,
@@ -54,6 +58,10 @@ class AuthController
         $body     = body();
         $email    = trim((string) required_field($body, 'email'));
         $password = (string) required_field($body, 'password');
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            error_out('Invalid email or password', 401);
+        }
 
         $stmt = db()->prepare(
             'SELECT id, first_name, last_name, role, email, password_hash

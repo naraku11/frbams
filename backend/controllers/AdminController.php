@@ -126,6 +126,13 @@ class AdminController
         $grade  = $_GET['grade']  ?? '';
         $status = $_GET['status'] ?? '';
 
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            error_out('Invalid date format. Use YYYY-MM-DD.');
+        }
+        if ($status !== '' && !in_array($status, ['present', 'late', 'absent', 'excused'], true)) {
+            error_out('Invalid status.');
+        }
+
         $where  = ['ar.record_date = ?'];
         $params = [$date];
 
@@ -169,6 +176,10 @@ class AdminController
     {
         require_admin();
         $status = $_GET['status'] ?? 'pending';
+
+        if (!in_array($status, ['pending', 'approved', 'declined'], true)) {
+            error_out('Invalid status. Must be pending, approved, or declined.');
+        }
 
         $stmt = db()->prepare(
             "SELECT lr.id,
