@@ -1,17 +1,43 @@
-import React, { useState } from 'react'
-import { STUDENTS, GRADES, COURSES } from './data'
+import React, { useState, useEffect } from 'react'
+import { api } from './api'
 import { I } from './icons'
 import { Sidebar, TopBar } from './shell'
 
-export function StudentList() {
-  const [search, setSearch] = useState('')
-  const [gradeFilter, setGradeFilter] = useState('all')
+const GRADES = ['10A', '10B', '11A', '11B', '12A', '12B']
 
-  const filtered = STUDENTS.filter(s => {
-    const matchSearch = !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.id.includes(search)
-    const matchGrade  = gradeFilter === 'all' || s.grade === gradeFilter
-    return matchSearch && matchGrade
-  })
+function hue(code) { return (parseInt((code ?? '').replace(/\D/g, '')) * 37) % 360 }
+
+export function StudentList() {
+  const [search,      setSearch]      = useState('')
+  const [gradeFilter, setGradeFilter] = useState('all')
+  const [students,    setStudents]    = useState([])
+  const [total,       setTotal]       = useState(0)
+  const [loading,     setLoading]     = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    const params = {}
+    if (search)                        params.search = search
+    if (gradeFilter && gradeFilter !== 'all') params.grade  = gradeFilter
+
+    const timer = setTimeout(() => {
+      api.students(params)
+        .then(res => { setStudents(res.data ?? []); setTotal(res.total ?? 0) })
+        .catch(() => { setStudents([]); setTotal(0) })
+        .finally(() => setLoading(false))
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [search, gradeFilter])
+
+  const rows = students.map(s => ({
+    ...s,
+    id:    s.studentCode,
+    first: s.firstName,
+    last:  s.lastName,
+    hue:   hue(s.studentCode),
+    rate:  (s.attendanceRate ?? 0) / 100,
+  }))
 
   return (
     <div className="fm-screen" data-screen-label="Students">
@@ -23,7 +49,7 @@ export function StudentList() {
             <div>
               <div className="fm-eyebrow" style={{ marginBottom: 8 }}>Roster</div>
               <h1 className="fm-h1">Students</h1>
-              <div className="fm-muted" style={{ marginTop: 6, fontSize: 14 }}>{STUDENTS.length} enrolled · Spring 2026</div>
+              <div className="fm-muted" style={{ marginTop: 6, fontSize: 14 }}>{total} enrolled</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="fm-btn"><I.Export size={14} /> Export</button>
@@ -63,8 +89,12 @@ export function StudentList() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s, i) => {
-                  const pct = Math.round(s.rate * 100)
+                {loading ? (
+                  <tr><td colSpan={7} style={{padding:32, textAlign:'center', color:'var(--fg-3)'}}>Loading…</td></tr>
+                ) : rows.length === 0 ? (
+                  <tr><td colSpan={7} style={{padding:32, textAlign:'center', color:'var(--fg-3)'}}>No students found.</td></tr>
+                ) : rows.map((s) => {
+                  const pct    = Math.round(s.rate * 100)
                   const status = pct >= 90 ? 'ok' : pct >= 75 ? 'late' : 'ab'
                   const label  = pct >= 90 ? 'Good' : pct >= 75 ? 'At risk' : 'Critical'
                   return (
@@ -73,7 +103,7 @@ export function StudentList() {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div className="fm-avatar sm" style={{ background: `oklch(0.86 0.14 ${s.hue})` }}>
-                            {s.first[0]}{s.last[0]}
+                            {(s.first?.[0] ?? '')}{(s.last?.[0] ?? '')}
                           </div>
                           <div>
                             <div style={{ fontWeight: 500 }}>{s.name}</div>
@@ -101,7 +131,7 @@ export function StudentList() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 12 }}>
-            <span className="fm-muted mono">Showing {filtered.length} of {STUDENTS.length}</span>
+            <span className="fm-muted mono">Showing {rows.length} of {total}</span>
           </div>
         </div>
       </div>

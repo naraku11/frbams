@@ -38,7 +38,7 @@ class AdminController
             "SELECT ar.id, CONCAT(s.first_name,' ',s.last_name) AS name,
                     s.student_code AS studentCode, g.label AS grade,
                     TIME_FORMAT(ar.check_in_time,'%H:%i') AS time,
-                    ar.status, ar.method, ar.confidence,
+                    ar.status, ar.method, ar.confidence AS conf,
                     c.name AS course
              FROM   attendance_records ar
              JOIN   students s ON s.id = ar.student_id
@@ -52,16 +52,54 @@ class AdminController
         $recentStmt->execute([$today]);
         $recent = $recentStmt->fetchAll();
 
+        // 7-day attendance bars
+        $barStmt = $pdo->prepare(
+            "SELECT record_date AS d,
+                    ROUND(COUNT(DISTINCT CASE WHEN status IN ('present','late') THEN student_id END)
+                          / NULLIF((SELECT COUNT(*) FROM students WHERE is_active = 1), 0) * 100) AS v
+             FROM   attendance_records
+             WHERE  record_date BETWEEN DATE_SUB(?, INTERVAL 6 DAY) AND ?
+             GROUP  BY record_date
+             ORDER  BY record_date"
+        );
+        $barStmt->execute([$today, $today]);
+        $barMap = [];
+        foreach ($barStmt->fetchAll() as $b) {
+            $barMap[$b['d']] = (int) $b['v'];
+        }
+        $weekBars = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $d   = date('Y-m-d', strtotime("-{$i} days", strtotime($today)));
+            $dow = date('D', strtotime($d));
+            $weekBars[] = ['d' => $dow, 'v' => $barMap[$d] ?? 0, 'off' => !isset($barMap[$d])];
+        }
+
+        // Per-grade current-day breakdown
+        $gradeStmt = $pdo->prepare(
+            "SELECT g.label AS grade,
+                    COUNT(DISTINCT s.id) AS total,
+                    COUNT(DISTINCT CASE WHEN ar.status IN ('present','late') THEN ar.student_id END) AS present
+             FROM   grades g
+             JOIN   students s ON s.grade_id = g.id AND s.is_active = 1
+             LEFT JOIN attendance_records ar ON ar.student_id = s.id AND ar.record_date = ?
+             GROUP  BY g.id, g.label
+             ORDER  BY g.label"
+        );
+        $gradeStmt->execute([$today]);
+        $byGrade = $gradeStmt->fetchAll();
+
         json_out([
-            'date'    => $today,
-            'stats'   => [
+            'date'     => $today,
+            'stats'    => [
                 'total'   => $total,
                 'present' => $present,
                 'late'    => $late,
                 'absent'  => $absent,
                 'rate'    => $total > 0 ? round($present / $total * 100, 1) : 0,
             ],
-            'recent'  => $recent,
+            'recent'   => $recent,
+            'weekBars' => $weekBars,
+            'byGrade'  => $byGrade,
         ]);
     }
 
@@ -98,6 +136,7 @@ class AdminController
 
         $stmt = db()->prepare(
             "SELECT s.id, s.student_code AS studentCode,
+                    s.first_name AS firstName, s.last_name AS lastName,
                     CONCAT(s.first_name,' ',s.last_name) AS name,
                     g.label AS grade, s.email,
                     COALESCE(v.rate, 0) AS attendanceRate
@@ -150,12 +189,14 @@ class AdminController
         $stmt = db()->prepare(
             "SELECT ar.id,
                     CONCAT(s.first_name,' ',s.last_name)     AS name,
+                    s.first_name                             AS firstName,
+                    s.last_name                              AS lastName,
                     s.student_code                           AS studentCode,
                     g.label                                  AS grade,
-                    TIME_FORMAT(ar.check_in_time,  '%H:%i')  AS checkIn,
+                    TIME_FORMAT(ar.check_in_time,  '%H:%i')  AS time,
                     TIME_FORMAT(ar.check_out_time, '%H:%i')  AS checkOut,
                     ar.status, ar.method,
-                    ar.confidence,
+                    ar.confidence                            AS conf,
                     gz.name                                  AS location,
                     cam.label                                AS camera
              FROM   attendance_records ar

@@ -1,6 +1,6 @@
 // admin-misc.jsx — Enrollment, Reports, Settings, Notifications, Leave
 import React from 'react'
-import { MONTH_BARS, LEAVE } from './data'
+import { api } from './api'
 import { I } from './icons'
 import { Sidebar, TopBar } from './shell'
 import { THEMES, getSavedTheme, saveTheme } from './theme'
@@ -116,7 +116,26 @@ function Enrollment() {
 }
 
 function Reports() {
-  const courses = ["Calculus II","Org Chem","World Lit","Linear Algebra","Macro Econ","Intro CS","French III"]
+  const [month,  setMonth]  = React.useState(() => new Date().toISOString().slice(0, 7))
+  const [report, setReport] = React.useState(null)
+
+  React.useEffect(() => {
+    api.reports(month).then(setReport).catch(() => setReport(null))
+  }, [month])
+
+  const bars = (report?.daily ?? []).map(d => ({
+    d: new Date(d.date + 'T00:00:00').getDate(),
+    v: d.enrolled > 0 ? Math.round((d.present / d.enrolled) * 100) : 0,
+  }))
+
+  const courses = (report?.courses ?? []).map(c => ({
+    name:     c.course,
+    enrolled: c.enrolled,
+    pct:      c.enrolled > 0 ? Math.round((c.attended / c.enrolled) * 100) : 0,
+    late:     c.late,
+    absent:   c.absent,
+  }))
+
   return (
     <div className="fm-screen" data-screen-label="Reports">
       <Sidebar />
@@ -125,53 +144,43 @@ function Reports() {
         <div className="fm-content">
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:24}}>
             <div>
-              <div className="fm-eyebrow" style={{marginBottom:8}}>Reports · April 2026</div>
+              <div className="fm-eyebrow" style={{marginBottom:8}}>Reports · {month}</div>
               <h1 className="fm-h1">Monthly attendance</h1>
             </div>
-            <div style={{display:"flex", gap:8}}>
-              <button className="fm-btn"><I.Cal size={14}/> April 2026</button>
+            <div style={{display:"flex", gap:8, alignItems:"center"}}>
+              <input
+                type="month"
+                className="fm-input"
+                value={month}
+                onChange={e => setMonth(e.target.value)}
+                style={{width:160}}
+              />
               <button className="fm-btn primary"><I.Export size={14}/> Generate PDF</button>
-            </div>
-          </div>
-
-          <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:16, marginBottom:16}}>
-            <div className="fm-card">
-              <div className="fm-eyebrow">Avg attendance</div>
-              <div className="fm-stat-num xl" style={{marginTop:10}}>91.4<span style={{fontSize:28, color:"var(--fg-3)"}}>%</span></div>
-              <div className="fm-muted mono" style={{fontSize:11.5, marginTop:4}}>+2.1% vs March</div>
-            </div>
-            <div className="fm-card">
-              <div className="fm-eyebrow">Perfect attendance</div>
-              <div className="fm-stat-num xl" style={{marginTop:10}}>184</div>
-              <div className="fm-muted mono" style={{fontSize:11.5, marginTop:4}}>33.6% of students</div>
-            </div>
-            <div className="fm-card">
-              <div className="fm-eyebrow">Total absences</div>
-              <div className="fm-stat-num xl" style={{marginTop:10}}>438</div>
-              <div className="fm-muted mono" style={{fontSize:11.5, marginTop:4}}>72 unexcused</div>
             </div>
           </div>
 
           <div className="fm-card" style={{marginBottom:16}}>
             <div style={{display:"flex", justifyContent:"space-between", marginBottom:18}}>
               <h2 className="fm-h2">Daily trend</h2>
-              <div className="fm-tabs">
-                <div className="fm-tab active">Attendance %</div>
-                <div className="fm-tab">Absences</div>
+            </div>
+            {bars.length === 0 ? (
+              <div style={{height:200, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--fg-3)', fontSize:13}}>
+                No data for this month.
               </div>
-            </div>
-            <div style={{height:200, display:"flex", alignItems:"flex-end", gap:3}}>
-              {MONTH_BARS.map((b, i) => (
-                <div key={i} style={{
-                  flex:1,
-                  height: b.v + "%",
-                  background: b.v < 80 ? "var(--amber)" : "var(--accent)",
-                  borderRadius:"3px 3px 0 0",
-                }} title={`Apr ${b.d}: ${b.v}%`}/>
-              ))}
-            </div>
+            ) : (
+              <div style={{height:200, display:"flex", alignItems:"flex-end", gap:3}}>
+                {bars.map((b, i) => (
+                  <div key={i} style={{
+                    flex:1,
+                    height: (b.v || 2) + "%",
+                    background: b.v < 80 ? "var(--amber)" : "var(--accent)",
+                    borderRadius:"3px 3px 0 0",
+                  }} title={`Day ${b.d}: ${b.v}%`}/>
+                ))}
+              </div>
+            )}
             <div style={{display:"flex", justifyContent:"space-between", marginTop:8, fontFamily:"var(--mono)", fontSize:10.5, color:"var(--fg-3)"}}>
-              <span>Apr 1</span><span>Apr 15</span><span>Apr 30</span>
+              <span>Day 1</span><span>Day 15</span><span>Day 30</span>
             </div>
           </div>
 
@@ -191,23 +200,22 @@ function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {courses.map((c, i) => {
-                  const pct = 78 + ((i*13)%18)
-                  return (
-                    <tr key={c}>
-                      <td style={{paddingLeft:20, fontWeight:500}}>{c}</td>
-                      <td className="mono">{28 + i*2}</td>
-                      <td className="mono">{pct}%</td>
-                      <td className="mono">{4 + (i%5)}</td>
-                      <td className="mono">{2 + (i%4)}</td>
-                      <td>
-                        <div style={{height:6, background:"var(--line-2)", borderRadius:99, overflow:"hidden"}}>
-                          <div style={{width:pct+"%", height:"100%", background: pct < 85 ? "var(--amber)" : "var(--accent)"}}/>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {courses.length === 0 ? (
+                  <tr><td colSpan={6} style={{padding:32, textAlign:'center', color:'var(--fg-3)'}}>No course data.</td></tr>
+                ) : courses.map((c) => (
+                  <tr key={c.name}>
+                    <td style={{paddingLeft:20, fontWeight:500}}>{c.name}</td>
+                    <td className="mono">{c.enrolled}</td>
+                    <td className="mono">{c.pct}%</td>
+                    <td className="mono">{c.late}</td>
+                    <td className="mono">{c.absent}</td>
+                    <td>
+                      <div style={{height:6, background:"var(--line-2)", borderRadius:99, overflow:"hidden"}}>
+                        <div style={{width:c.pct+"%", height:"100%", background: c.pct < 85 ? "var(--amber)" : "var(--accent)"}}/>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -531,6 +539,36 @@ function Settings() {
 }
 
 function LeaveRequests() {
+  const [tab,    setTab]    = React.useState('pending')
+  const [leaves, setLeaves] = React.useState([])
+  const [acting, setActing] = React.useState(null)
+
+  React.useEffect(() => {
+    api.leaveRequests(tab).then(setLeaves).catch(() => setLeaves([]))
+  }, [tab])
+
+  const act = async (id, action) => {
+    setActing(id)
+    try {
+      await (action === 'approve' ? api.approveLeave(id) : api.declineLeave(id))
+      setLeaves(prev => prev.filter(l => l.id !== id))
+    } catch (_) {}
+    setActing(null)
+  }
+
+  const items = leaves.map(l => ({
+    ...l,
+    name: l.studentName,
+    date: l.dateFrom === l.dateTo ? l.dateFrom : `${l.dateFrom} – ${l.dateTo}`,
+    hue:  (parseInt((l.studentCode ?? '').replace(/\D/g, '')) * 37) % 360,
+  }))
+
+  const tabDefs = [
+    { value: 'pending',  label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'declined', label: 'Declined' },
+  ]
+
   return (
     <div className="fm-screen" data-screen-label="Leave Requests">
       <Sidebar />
@@ -543,18 +581,30 @@ function LeaveRequests() {
               <h1 className="fm-h1">Leave requests</h1>
             </div>
             <div className="fm-tabs">
-              <div className="fm-tab active">Pending <span className="mono" style={{marginLeft:6}}>2</span></div>
-              <div className="fm-tab">Approved</div>
-              <div className="fm-tab">Declined</div>
+              {tabDefs.map(t => (
+                <div
+                  key={t.value}
+                  className={`fm-tab${tab === t.value ? ' active' : ''}`}
+                  onClick={() => setTab(t.value)}
+                  style={{cursor:'pointer'}}
+                >
+                  {t.label}
+                  {tab === t.value && <span className="mono" style={{marginLeft:6}}>{items.length}</span>}
+                </div>
+              ))}
             </div>
           </div>
 
           <div style={{display:"flex", flexDirection:"column", gap:12}}>
-            {LEAVE.map((l, i) => (
-              <div key={i} className="fm-card" style={{display:"grid", gridTemplateColumns:"1fr auto", gap:18, alignItems:"center"}}>
+            {items.length === 0 ? (
+              <div className="fm-card" style={{textAlign:'center', color:'var(--fg-3)', padding:40}}>
+                No {tab} leave requests.
+              </div>
+            ) : items.map((l) => (
+              <div key={l.id} className="fm-card" style={{display:"grid", gridTemplateColumns:"1fr auto", gap:18, alignItems:"center"}}>
                 <div style={{display:"flex", gap:14, alignItems:"center"}}>
-                  <div className="fm-avatar lg" style={{background:`oklch(0.86 0.14 ${(i*73)%360})`}}>
-                    {l.name.split(" ").map(s=>s[0]).join("")}
+                  <div className="fm-avatar lg" style={{background:`oklch(0.86 0.14 ${l.hue})`}}>
+                    {(l.name ?? '').split(" ").map(s => s[0]).join("").slice(0, 2)}
                   </div>
                   <div>
                     <div style={{display:"flex", gap:10, alignItems:"baseline"}}>
@@ -568,11 +618,21 @@ function LeaveRequests() {
                 </div>
                 {l.status === "pending" ? (
                   <div style={{display:"flex", gap:8}}>
-                    <button className="fm-btn"><I.X size={13}/> Decline</button>
-                    <button className="fm-btn primary"><I.Check size={13}/> Approve</button>
+                    <button
+                      className="fm-btn"
+                      disabled={acting === l.id}
+                      onClick={() => act(l.id, 'decline')}
+                    ><I.X size={13}/> Decline</button>
+                    <button
+                      className="fm-btn primary"
+                      disabled={acting === l.id}
+                      onClick={() => act(l.id, 'approve')}
+                    ><I.Check size={13}/> Approve</button>
                   </div>
                 ) : (
-                  <span className="fm-muted" style={{fontSize:12}}>Reviewed by Dr. Wexler</span>
+                  <span className="fm-muted" style={{fontSize:12}}>
+                    {l.status === 'approved' ? 'Approved' : 'Declined'}
+                  </span>
                 )}
               </div>
             ))}
