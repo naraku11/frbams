@@ -1,4 +1,4 @@
-﻿// extras.jsx — Subjects/timetable + offline queue screens
+// extras.jsx — Subjects/timetable + offline queue screens
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from './api'
