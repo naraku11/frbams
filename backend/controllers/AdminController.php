@@ -812,4 +812,241 @@ class AdminController
 
         json_out(['id' => $recId, 'status' => $status]);
     }
+
+    // ── Programs ─────────────────────────────────────────────────────────────
+
+    /** GET /admin/programs */
+    public static function programs(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT p.id, p.code, p.name, p.description,
+                    p.department_id AS departmentId, d.name AS department
+             FROM programs p
+             LEFT JOIN departments d ON d.id = p.department_id
+             WHERE p.school_id = ? AND p.is_active = 1
+             ORDER BY p.name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** POST /admin/programs */
+    public static function createProgram(): void
+    {
+        $user  = require_admin();
+        $sid   = (int) ($user['school_id'] ?? 1);
+        $body  = body();
+
+        $code  = trim((string) required_field($body, 'code'));
+        $name  = trim((string) required_field($body, 'name'));
+        $deptId = !empty($body['departmentId']) ? (int) $body['departmentId'] : null;
+        $desc  = trim((string) ($body['description'] ?? ''));
+
+        $dup = db()->prepare('SELECT id FROM programs WHERE code = ? AND school_id = ? LIMIT 1');
+        $dup->execute([$code, $sid]);
+        if ($dup->fetch()) error_out('Program code already exists', 409);
+
+        db()->prepare(
+            'INSERT INTO programs (school_id, code, name, department_id, description, is_active)
+             VALUES (?, ?, ?, ?, ?, 1)'
+        )->execute([$sid, $code, $name, $deptId, $desc ?: null]);
+
+        json_out(['id' => (int) db()->lastInsertId(), 'code' => $code, 'name' => $name], 201);
+    }
+
+    /** PATCH /admin/programs/:id */
+    public static function updateProgram(string $id): void
+    {
+        $user   = require_admin();
+        $sid    = (int) ($user['school_id'] ?? 1);
+        $progId = (int) $id;
+        $body   = body();
+
+        $sets = []; $params = [];
+        if (isset($body['code']))  { $sets[] = 'code = ?';  $params[] = trim($body['code']); }
+        if (isset($body['name']))  { $sets[] = 'name = ?';  $params[] = trim($body['name']); }
+        if (array_key_exists('departmentId', $body)) {
+            $sets[] = 'department_id = ?';
+            $params[] = $body['departmentId'] ? (int) $body['departmentId'] : null;
+        }
+        if (array_key_exists('description', $body)) {
+            $sets[] = 'description = ?';
+            $params[] = trim($body['description']) ?: null;
+        }
+        if (empty($sets)) error_out('Nothing to update');
+
+        $params[] = $progId; $params[] = $sid;
+        db()->prepare("UPDATE programs SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?")->execute($params);
+        json_out(['ok' => true]);
+    }
+
+    /** DELETE /admin/programs/:id */
+    public static function deleteProgram(string $id): void
+    {
+        $user   = require_admin();
+        $sid    = (int) ($user['school_id'] ?? 1);
+        db()->prepare("UPDATE programs SET is_active = 0 WHERE id = ? AND school_id = ?")->execute([(int) $id, $sid]);
+        json_out(['ok' => true]);
+    }
+
+    // ── Curricula ─────────────────────────────────────────────────────────────
+
+    /** GET /admin/curricula */
+    public static function curricula(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT c.id, c.code, c.name, c.year_implemented AS yearImplemented,
+                    c.description, c.program_id AS programId, p.name AS program
+             FROM curricula c
+             LEFT JOIN programs p ON p.id = c.program_id
+             WHERE c.school_id = ? AND c.is_active = 1
+             ORDER BY c.name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** POST /admin/curricula */
+    public static function createCurriculum(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $body = body();
+
+        $name   = trim((string) required_field($body, 'name'));
+        $code   = trim((string) ($body['code'] ?? ''));
+        $progId = !empty($body['programId'])      ? (int) $body['programId'] : null;
+        $year   = trim((string) ($body['yearImplemented'] ?? ''));
+        $desc   = trim((string) ($body['description'] ?? ''));
+
+        db()->prepare(
+            'INSERT INTO curricula (school_id, program_id, code, name, year_implemented, description, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, 1)'
+        )->execute([$sid, $progId, $code ?: null, $name, $year ?: null, $desc ?: null]);
+
+        json_out(['id' => (int) db()->lastInsertId(), 'name' => $name], 201);
+    }
+
+    /** PATCH /admin/curricula/:id */
+    public static function updateCurriculum(string $id): void
+    {
+        $user   = require_admin();
+        $sid    = (int) ($user['school_id'] ?? 1);
+        $currId = (int) $id;
+        $body   = body();
+
+        $sets = []; $params = [];
+        if (isset($body['name'])) { $sets[] = 'name = ?'; $params[] = trim($body['name']); }
+        if (isset($body['code'])) { $sets[] = 'code = ?'; $params[] = trim($body['code']) ?: null; }
+        if (array_key_exists('programId', $body)) {
+            $sets[] = 'program_id = ?';
+            $params[] = $body['programId'] ? (int) $body['programId'] : null;
+        }
+        if (array_key_exists('yearImplemented', $body)) {
+            $sets[] = 'year_implemented = ?';
+            $params[] = trim($body['yearImplemented']) ?: null;
+        }
+        if (array_key_exists('description', $body)) {
+            $sets[] = 'description = ?';
+            $params[] = trim($body['description']) ?: null;
+        }
+        if (empty($sets)) error_out('Nothing to update');
+
+        $params[] = $currId; $params[] = $sid;
+        db()->prepare("UPDATE curricula SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?")->execute($params);
+        json_out(['ok' => true]);
+    }
+
+    /** DELETE /admin/curricula/:id */
+    public static function deleteCurriculum(string $id): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        db()->prepare("UPDATE curricula SET is_active = 0 WHERE id = ? AND school_id = ?")->execute([(int) $id, $sid]);
+        json_out(['ok' => true]);
+    }
+
+    // ── Sections ──────────────────────────────────────────────────────────────
+
+    /** GET /admin/sections */
+    public static function sections(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT s.id, s.name, s.year_level AS yearLevel,
+                    s.academic_year AS academicYear, s.max_students AS maxStudents,
+                    s.curriculum_id AS curriculumId, s.adviser_id AS adviserId, s.room_id AS roomId,
+                    cu.name AS curriculum,
+                    CONCAT(u.first_name, ' ', u.last_name) AS adviser,
+                    r.name AS room
+             FROM sections s
+             LEFT JOIN curricula cu ON cu.id = s.curriculum_id
+             LEFT JOIN users u ON u.id = s.adviser_id
+             LEFT JOIN rooms r ON r.id = s.room_id
+             WHERE s.school_id = ? AND s.is_active = 1
+             ORDER BY s.name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** POST /admin/sections */
+    public static function createSection(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $body = body();
+
+        $name       = trim((string) required_field($body, 'name'));
+        $currId     = !empty($body['curriculumId'])  ? (int) $body['curriculumId']  : null;
+        $yearLevel  = !empty($body['yearLevel'])     ? (int) $body['yearLevel']     : null;
+        $adviserId  = !empty($body['adviserId'])     ? (int) $body['adviserId']     : null;
+        $roomId     = !empty($body['roomId'])        ? (int) $body['roomId']        : null;
+        $maxStudents = !empty($body['maxStudents'])  ? (int) $body['maxStudents']   : null;
+        $acYear     = trim((string) ($body['academicYear'] ?? ''));
+
+        db()->prepare(
+            'INSERT INTO sections (school_id, curriculum_id, name, year_level, adviser_id, room_id, max_students, academic_year, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)'
+        )->execute([$sid, $currId, $name, $yearLevel, $adviserId, $roomId, $maxStudents, $acYear ?: null]);
+
+        json_out(['id' => (int) db()->lastInsertId(), 'name' => $name], 201);
+    }
+
+    /** PATCH /admin/sections/:id */
+    public static function updateSection(string $id): void
+    {
+        $user   = require_admin();
+        $sid    = (int) ($user['school_id'] ?? 1);
+        $sectId = (int) $id;
+        $body   = body();
+
+        $sets = []; $params = [];
+        if (isset($body['name'])) { $sets[] = 'name = ?'; $params[] = trim($body['name']); }
+        if (array_key_exists('curriculumId', $body))  { $sets[] = 'curriculum_id = ?'; $params[] = $body['curriculumId'] ? (int) $body['curriculumId'] : null; }
+        if (array_key_exists('yearLevel', $body))     { $sets[] = 'year_level = ?';    $params[] = $body['yearLevel'] ? (int) $body['yearLevel'] : null; }
+        if (array_key_exists('adviserId', $body))     { $sets[] = 'adviser_id = ?';    $params[] = $body['adviserId'] ? (int) $body['adviserId'] : null; }
+        if (array_key_exists('roomId', $body))        { $sets[] = 'room_id = ?';       $params[] = $body['roomId'] ? (int) $body['roomId'] : null; }
+        if (array_key_exists('maxStudents', $body))   { $sets[] = 'max_students = ?';  $params[] = $body['maxStudents'] ? (int) $body['maxStudents'] : null; }
+        if (array_key_exists('academicYear', $body))  { $sets[] = 'academic_year = ?'; $params[] = trim($body['academicYear']) ?: null; }
+        if (empty($sets)) error_out('Nothing to update');
+
+        $params[] = $sectId; $params[] = $sid;
+        db()->prepare("UPDATE sections SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?")->execute($params);
+        json_out(['ok' => true]);
+    }
+
+    /** DELETE /admin/sections/:id */
+    public static function deleteSection(string $id): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        db()->prepare("UPDATE sections SET is_active = 0 WHERE id = ? AND school_id = ?")->execute([(int) $id, $sid]);
+        json_out(['ok' => true]);
+    }
 }

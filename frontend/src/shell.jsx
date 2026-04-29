@@ -16,6 +16,11 @@ const NAV2_DEFS = [
   { label: 'Notifications',  icon: 'Bell',     to: '/alerts' },
   { label: 'Settings',       icon: 'Settings', to: '/settings' },
 ]
+const NAV3_DEFS = [
+  { label: 'Course / Program', icon: 'Book',   to: '/programs' },
+  { label: 'Curriculum',       icon: 'Layers', to: '/curriculum' },
+  { label: 'Section',          icon: 'Grid4',  to: '/sections' },
+]
 
 function NavItem({ item, counts }) {
   const badge = item.badgeKey ? (counts[item.badgeKey] ?? null) : null
@@ -109,6 +114,10 @@ export function Sidebar({ layout = 'sidebar' }) {
       <div className="fm-side-section">Manage</div>
       <nav className="fm-nav">
         {NAV2_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
+      </nav>
+      <div className="fm-side-section">Academic</div>
+      <nav className="fm-nav">
+        {NAV3_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
       </nav>
       <div className="fm-side-foot">
         <div className="fm-avatar">{initials}</div>

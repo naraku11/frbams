@@ -7,6 +7,7 @@ import { Enrollment, Reports, Settings, LeaveRequests } from './admin-misc'
 import { NotificationsScreen } from './notifications'
 import { Subjects, OfflineSync, CourseManager } from './extras'
 import { StudentList } from './students'
+import { Programs, Curricula, Sections } from './admin-academic'
 
 function Guard({ children }) {
   const authed = localStorage.getItem('frbams_authed') === '1'
@@ -31,7 +32,10 @@ export default function App() {
         <Route path="/subjects"  element={<Guard><Subjects /></Guard>} />
         <Route path="/sync"      element={<Guard><OfflineSync /></Guard>} />
         <Route path="/courses"   element={<Guard><CourseManager /></Guard>} />
-        <Route path="*"          element={<Navigate to="/dashboard" replace />} />
+        <Route path="/programs"    element={<Guard><Programs /></Guard>} />
+        <Route path="/curriculum"  element={<Guard><Curricula /></Guard>} />
+        <Route path="/sections"    element={<Guard><Sections /></Guard>} />
+        <Route path="*"            element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   )

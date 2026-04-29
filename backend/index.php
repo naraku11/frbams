@@ -88,8 +88,20 @@ Router::add('GET',  '/admin/courses',                       [AdminController::cl
 Router::add('POST', '/admin/courses',                       [AdminController::class, 'createCourse']);
 Router::add('GET',  '/admin/offline-queue',                 [AdminController::class, 'offlineQueue']);
 Router::add('GET',  '/admin/notification-rules',            [AdminController::class, 'notificationRules']);
-Router::add('PATCH','/admin/notification-rules/:id',        [AdminController::class, 'updateNotificationRule']);
-Router::add('PATCH','/admin/attendance/:id',                [AdminController::class, 'updateAttendance']);
+Router::add('PATCH', '/admin/notification-rules/:id',       [AdminController::class, 'updateNotificationRule']);
+Router::add('PATCH', '/admin/attendance/:id',               [AdminController::class, 'updateAttendance']);
+Router::add('GET',   '/admin/programs',                     [AdminController::class, 'programs']);
+Router::add('POST',  '/admin/programs',                     [AdminController::class, 'createProgram']);
+Router::add('PATCH', '/admin/programs/:id',                 [AdminController::class, 'updateProgram']);
+Router::add('DELETE','/admin/programs/:id',                 [AdminController::class, 'deleteProgram']);
+Router::add('GET',   '/admin/curricula',                    [AdminController::class, 'curricula']);
+Router::add('POST',  '/admin/curricula',                    [AdminController::class, 'createCurriculum']);
+Router::add('PATCH', '/admin/curricula/:id',                [AdminController::class, 'updateCurriculum']);
+Router::add('DELETE','/admin/curricula/:id',                [AdminController::class, 'deleteCurriculum']);
+Router::add('GET',   '/admin/sections',                     [AdminController::class, 'sections']);
+Router::add('POST',  '/admin/sections',                     [AdminController::class, 'createSection']);
+Router::add('PATCH', '/admin/sections/:id',                 [AdminController::class, 'updateSection']);
+Router::add('DELETE','/admin/sections/:id',                 [AdminController::class, 'deleteSection']);
 
 // Health check
 Router::add('GET', '/health', fn() => json_out(['status' => 'ok', 'ts' => time()]));
