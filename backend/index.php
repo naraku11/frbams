@@ -102,6 +102,9 @@ Router::add('GET',   '/admin/sections',                     [AdminController::cl
 Router::add('POST',  '/admin/sections',                     [AdminController::class, 'createSection']);
 Router::add('PATCH', '/admin/sections/:id',                 [AdminController::class, 'updateSection']);
 Router::add('DELETE','/admin/sections/:id',                 [AdminController::class, 'deleteSection']);
+Router::add('GET',   '/admin/school-info',                  [AdminController::class, 'schoolInfo']);
+Router::add('PATCH', '/admin/school-info',                  [AdminController::class, 'updateSchoolInfo']);
+Router::add('POST',  '/admin/upload-asset',                 [AdminController::class, 'uploadAsset']);
 
 // Health check
 Router::add('GET', '/health', fn() => json_out(['status' => 'ok', 'ts' => time()]));

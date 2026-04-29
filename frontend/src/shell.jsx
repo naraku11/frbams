@@ -38,12 +38,25 @@ function NavItem({ item, counts }) {
   )
 }
 
-function UVMark() {
+function UVMark({ logoUrl, shortName }) {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt="logo"
+        style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 4, flexShrink: 0 }}
+      />
+    )
+  }
   return (
     <div className="fm-brand-mark" style={{ fontSize: 11, fontWeight: 800, letterSpacing: '-0.02em' }}>
-      UV
+      {shortName || 'UV'}
     </div>
   )
+}
+
+function readBranding() {
+  try { return JSON.parse(localStorage.getItem('frbams_branding') || '{}') } catch { return {} }
 }
 
 export function Sidebar({ layout = 'sidebar' }) {
@@ -52,7 +65,18 @@ export function Sidebar({ layout = 'sidebar' }) {
   const initials  = user.initials ?? 'DW'
   const name      = user.name ?? 'Dr. Wexler'
   const role      = user.role ?? 'Vice Principal'
-  const [counts,  setCounts] = React.useState({})
+  const [counts,  setCounts]   = React.useState({})
+  const [branding, setBranding] = React.useState(readBranding)
+
+  React.useEffect(() => {
+    const onStorage = () => setBranding(readBranding())
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('frbams:branding', onStorage)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('frbams:branding', onStorage)
+    }
+  }, [])
 
   React.useEffect(() => {
     api.badgeCounts().then(setCounts).catch(() => {})
@@ -69,7 +93,7 @@ export function Sidebar({ layout = 'sidebar' }) {
     return (
       <div className="fm-topnav">
         <div className="fm-brand">
-          <UVMark />
+          <UVMark logoUrl={branding.logoUrl} shortName={branding.shortName} />
           <span style={{ color: 'var(--side-brand-fg, var(--fg))' }}>FRBAMS</span>
         </div>
         <div className="fm-topnav-links">
@@ -91,7 +115,7 @@ export function Sidebar({ layout = 'sidebar' }) {
     <div className="fm-side">
       <div className="fm-side-top">
         <div className="fm-brand">
-          <UVMark />
+          <UVMark logoUrl={branding.logoUrl} shortName={branding.shortName} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
             <span style={{
               color: 'var(--side-brand-fg)',
@@ -103,7 +127,7 @@ export function Sidebar({ layout = 'sidebar' }) {
               fontSize: 9.5, letterSpacing: '0.01em',
               lineHeight: 1, opacity: 0.8,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>University of the Visayas</span>
+            }}>{branding.schoolName || 'University of the Visayas'}</span>
           </div>
         </div>
       </div>

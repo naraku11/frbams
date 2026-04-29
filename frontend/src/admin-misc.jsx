@@ -574,7 +574,162 @@ function SettingsNotifications() {
   )
 }
 
+function AssetUploadField({ label, value, onChange, onUpload, uploading }) {
+  const ref = React.useRef()
+  return (
+    <div>
+      <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+        {value
+          ? <img src={value} alt={label} style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--bg)' }} />
+          : <div style={{ width: 48, height: 48, borderRadius: 8, border: '1px solid var(--line)', background: 'var(--line-2)', display: 'grid', placeItems: 'center', fontSize: 11, color: 'var(--fg-3)' }}>none</div>
+        }
+        <div style={{ flex: 1 }}>
+          <input
+            className="fm-input"
+            placeholder="https://…"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            style={{ marginBottom: 6 }}
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="fm-btn" style={{ fontSize: 12 }}
+              onClick={() => ref.current?.click()}
+              disabled={uploading}>
+              {uploading ? 'Uploading…' : 'Upload file'}
+            </button>
+            {value && (
+              <button className="fm-btn" style={{ fontSize: 12 }} onClick={() => onChange('')}>Remove</button>
+            )}
+          </div>
+        </div>
+      </div>
+      <input ref={ref} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => { if (e.target.files[0]) { onUpload(e.target.files[0]); e.target.value = '' } }} />
+    </div>
+  )
+}
+
+function SettingsBranding() {
+  const [form,     setForm]     = React.useState({ name: '', shortName: '', logoUrl: '', faviconUrl: '', address: '', timezone: '' })
+  const [uploading, setUploading] = React.useState(null)
+  const [saving,   setSaving]   = React.useState(false)
+  const [saved,    setSaved]    = React.useState(false)
+  const [error,    setError]    = React.useState('')
+
+  React.useEffect(() => {
+    api.schoolInfo().then(d => setForm({
+      name:       d.name       ?? '',
+      shortName:  d.shortName  ?? '',
+      logoUrl:    d.logoUrl    ?? '',
+      faviconUrl: d.faviconUrl ?? '',
+      address:    d.address    ?? '',
+      timezone:   d.timezone   ?? '',
+    })).catch(() => {})
+  }, [])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const upload = async (field, file) => {
+    setUploading(field)
+    try {
+      const { url } = await api.uploadAsset(file)
+      set(field, url)
+    } catch (e) { setError(e.message) }
+    setUploading(null)
+  }
+
+  const save = async () => {
+    setSaving(true); setError('')
+    try {
+      await api.updateSchoolInfo(form)
+      const branding = { schoolName: form.name, shortName: form.shortName, logoUrl: form.logoUrl, faviconUrl: form.faviconUrl }
+      localStorage.setItem('frbams_branding', JSON.stringify(branding))
+      window.dispatchEvent(new Event('frbams:branding'))
+      if (form.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']")
+        if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link) }
+        link.href = form.faviconUrl
+      }
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (e) { setError(e.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="fm-card">
+        <h3 className="fm-h3" style={{ marginBottom: 4 }}>School identity</h3>
+        <div className="fm-muted" style={{ fontSize: 12, marginBottom: 18 }}>
+          These details appear in the sidebar and browser tab across the whole admin panel.
+        </div>
+        <div style={{ display: 'grid', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 5 }}>School name</div>
+              <input className="fm-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="University of the Visayas" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 5 }}>Brand mark</div>
+              <input className="fm-input" value={form.shortName} onChange={e => set('shortName', e.target.value.slice(0, 6))} placeholder="UV" />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 5 }}>Address</div>
+            <input className="fm-input" value={form.address} onChange={e => set('address', e.target.value)} placeholder="Colon St., Cebu City" />
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 5 }}>Timezone</div>
+            <select className="fm-input" value={form.timezone} onChange={e => set('timezone', e.target.value)}>
+              {['Asia/Manila','UTC','America/New_York','America/Los_Angeles','Europe/London','Asia/Singapore'].map(tz => (
+                <option key={tz} value={tz}>{tz}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="fm-card">
+        <h3 className="fm-h3" style={{ marginBottom: 4 }}>Logo &amp; icon</h3>
+        <div className="fm-muted" style={{ fontSize: 12, marginBottom: 18 }}>
+          PNG, JPG, SVG or WebP recommended. Max 2 MB. The logo replaces the brand mark in the sidebar when set.
+        </div>
+        <div style={{ display: 'grid', gap: 20 }}>
+          <AssetUploadField
+            label="School logo (sidebar)"
+            value={form.logoUrl}
+            onChange={v => set('logoUrl', v)}
+            onUpload={f => upload('logoUrl', f)}
+            uploading={uploading === 'logoUrl'}
+          />
+          <AssetUploadField
+            label="Favicon / browser tab icon"
+            value={form.faviconUrl}
+            onChange={v => set('faviconUrl', v)}
+            onUpload={f => upload('faviconUrl', f)}
+            uploading={uploading === 'faviconUrl'}
+          />
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'color-mix(in oklch, var(--red) 12%, var(--card))', color: 'var(--red)', fontSize: 12.5 }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
+        {saved && <span style={{ fontSize: 12.5, color: 'var(--accent)' }}>Saved successfully</span>}
+        <button className="fm-btn primary" disabled={saving || uploading !== null} onClick={save}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const SETTINGS_TABS = [
+  { id: 'branding',      label: 'School Branding' },
   { id: 'appearance',    label: 'Appearance' },
   { id: 'recognition',   label: 'Recognition Engine' },
   { id: 'cameras',       label: 'Camera Network' },
@@ -585,7 +740,7 @@ const SETTINGS_TABS = [
 ]
 
 function Settings() {
-  const [tab, setTab] = React.useState('appearance')
+  const [tab, setTab] = React.useState('branding')
 
   return (
     <div className="fm-screen" data-screen-label="Settings">
@@ -613,7 +768,8 @@ function Settings() {
             </nav>
 
             <div>
-              {tab === 'appearance'    && <SettingsAppearance />}
+              {tab === 'branding'     && <SettingsBranding />}
+              {tab === 'appearance'   && <SettingsAppearance />}
               {tab === 'recognition'  && <SettingsRecognition />}
               {tab === 'cameras'      && <SettingsCameras />}
               {tab === 'notifications'&& <SettingsNotifications />}

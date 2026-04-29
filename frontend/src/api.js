@@ -64,4 +64,16 @@ export const api = {
   createSection:           (body)         => request('POST',   '/admin/sections', body),
   updateSection:           (id, body)     => request('PATCH',  `/admin/sections/${id}`, body),
   deleteSection:           (id)           => request('DELETE', `/admin/sections/${id}`),
+  schoolInfo:              ()             => request('GET',    '/admin/school-info'),
+  updateSchoolInfo:        (body)         => request('PATCH',  '/admin/school-info', body),
+  uploadAsset: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    const tok = localStorage.getItem('frbams_token') ?? ''
+    return fetch(`${BASE}/admin/upload-asset`, {
+      method: 'POST',
+      headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      body: form,
+    }).then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j }))
+  },
 }

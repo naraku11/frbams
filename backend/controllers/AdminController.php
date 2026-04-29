@@ -1049,4 +1049,88 @@ class AdminController
         db()->prepare("UPDATE sections SET is_active = 0 WHERE id = ? AND school_id = ?")->execute([(int) $id, $sid]);
         json_out(['ok' => true]);
     }
+
+    // ── School Branding ───────────────────────────────────────────────────────
+
+    /** GET /admin/school-info */
+    public static function schoolInfo(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            "SELECT id, name,
+                    COALESCE(short_name, '') AS shortName,
+                    COALESCE(logo_url, '')   AS logoUrl,
+                    COALESCE(favicon_url,'') AS faviconUrl,
+                    COALESCE(address, '')    AS address,
+                    timezone
+             FROM schools WHERE id = ? LIMIT 1"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetch() ?: new \stdClass());
+    }
+
+    /** PATCH /admin/school-info */
+    public static function updateSchoolInfo(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $body = body();
+
+        $map = [
+            'name'       => 'name',
+            'shortName'  => 'short_name',
+            'logoUrl'    => 'logo_url',
+            'faviconUrl' => 'favicon_url',
+            'address'    => 'address',
+            'timezone'   => 'timezone',
+        ];
+        $sets = []; $params = [];
+        foreach ($map as $js => $col) {
+            if (array_key_exists($js, $body)) {
+                $sets[]   = "`{$col}` = ?";
+                $params[] = trim((string) $body[$js]) ?: null;
+            }
+        }
+        if (empty($sets)) error_out('Nothing to update');
+
+        $params[] = $sid;
+        db()->prepare("UPDATE schools SET " . implode(', ', $sets) . " WHERE id = ?")->execute($params);
+        json_out(['ok' => true]);
+    }
+
+    /** POST /admin/upload-asset */
+    public static function uploadAsset(): void
+    {
+        require_admin();
+
+        if (empty($_FILES['file'])) error_out('No file provided', 400);
+
+        $file    = $_FILES['file'];
+        $mime    = $file['type'];
+        $allowed = [
+            'image/png'               => 'png',
+            'image/jpeg'              => 'jpg',
+            'image/gif'               => 'gif',
+            'image/webp'              => 'webp',
+            'image/svg+xml'           => 'svg',
+            'image/x-icon'            => 'ico',
+            'image/vnd.microsoft.icon'=> 'ico',
+        ];
+
+        if (!isset($allowed[$mime]))      error_out('File type not allowed', 415);
+        if ($file['size'] > 2097152)      error_out('Max file size is 2 MB', 413);
+        if ($file['error'] !== UPLOAD_ERR_OK) error_out('Upload error', 400);
+
+        $uploadDir = __DIR__ . '/../uploads/';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
+        $filename = bin2hex(random_bytes(8)) . '.' . $allowed[$mime];
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            error_out('Could not save file', 500);
+        }
+
+        $base = rtrim(env('APP_URL', ''), '/');
+        json_out(['url' => "{$base}/uploads/{$filename}"], 201);
+    }
 }

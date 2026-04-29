@@ -24,10 +24,12 @@ SET sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVIS
 CREATE TABLE IF NOT EXISTS `schools` (
   `id`            SMALLINT UNSIGNED  NOT NULL AUTO_INCREMENT,
   `name`          VARCHAR(120)       NOT NULL,
+  `short_name`    VARCHAR(10)        DEFAULT NULL,    -- "UV" brand mark shown in sidebar
   `subdomain`     VARCHAR(40)        NOT NULL UNIQUE,
   `address`       VARCHAR(255)       DEFAULT NULL,
   `timezone`      VARCHAR(60)        NOT NULL DEFAULT 'UTC',
-  `logo_url`      VARCHAR(512)       DEFAULT NULL,
+  `logo_url`      VARCHAR(512)       DEFAULT NULL,    -- sidebar logo image
+  `favicon_url`   VARCHAR(512)       DEFAULT NULL,    -- browser tab icon
   `created_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
