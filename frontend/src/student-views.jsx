@@ -1,4 +1,4 @@
-﻿// student-views.jsx â€” Student self-view (web) + Mobile check-in app
+﻿// student-views.jsx â€" Student self-view (web) + Mobile check-in app
 import React from 'react'
 import { makeMonth } from './data'
 import { I } from './icons'
@@ -62,10 +62,10 @@ function StudentSelf() {
                 <div className="fm-eyebrow">Today</div>
                 <div style={{marginTop:10, fontSize:14}}>
                   <div style={{display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid var(--line-2)"}}>
-                    <span>Calculus II</span><span className="mono fm-muted">09:30 âœ“</span>
+                    <span>Calculus II</span><span className="mono fm-muted">09:30 âœ"</span>
                   </div>
                   <div style={{display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid var(--line-2)"}}>
-                    <span>World Lit</span><span className="mono fm-muted">11:00 âœ“</span>
+                    <span>World Lit</span><span className="mono fm-muted">11:00 âœ"</span>
                   </div>
                   <div style={{display:"flex", justifyContent:"space-between", padding:"8px 0"}}>
                     <span>French III</span><span className="mono" style={{color:"var(--fg-4)"}}>13:30 Â·</span>
@@ -236,7 +236,7 @@ function MobileSuccess() {
           display:"grid", gap:6,
         }}>
           <div style={{display:"flex", justifyContent:"space-between"}}><span>Time</span><span style={{color:"var(--fg)"}}>09:42:11</span></div>
-          <div style={{display:"flex", justifyContent:"space-between"}}><span>Location</span><span style={{color:"var(--fg)"}}>Main Â· 40.7128, âˆ’74.0060</span></div>
+          <div style={{display:"flex", justifyContent:"space-between"}}><span>Location</span><span style={{color:"var(--fg)"}}>Main Â· 40.7128, âˆ'74.0060</span></div>
           <div style={{display:"flex", justifyContent:"space-between"}}><span>Camera</span><span style={{color:"var(--fg)"}}>Main Â· A1</span></div>
           <div style={{display:"flex", justifyContent:"space-between"}}><span>Confidence</span><span style={{color:"var(--fg)"}}>99.6%</span></div>
           <div style={{display:"flex", justifyContent:"space-between"}}><span>Streak</span><span style={{color:"var(--accent-ink)", background:"var(--accent)", padding:"0 6px", borderRadius:4}}>13 days</span></div>
@@ -424,7 +424,7 @@ function MobileGeofence() {
               </div>
               <div>
                 <div style={{opacity:0.5, fontSize:10, marginBottom:3}}>COORDINATES</div>
-                <div style={{fontSize:11, color:"white"}}>40.7128, âˆ’74.0060</div>
+                <div style={{fontSize:11, color:"white"}}>40.7128, âˆ'74.0060</div>
               </div>
             </div>
             <button style={{
@@ -432,7 +432,7 @@ function MobileGeofence() {
               background:"var(--accent)", color:"#000",
               fontSize:15, fontWeight:600, fontFamily:"var(--display)",
               cursor:"pointer", letterSpacing:"-0.01em",
-            }}>Continue to face check-in â†’</button>
+            }}>Continue to face check-in â†'</button>
           </div>
         </div>
       </div>
