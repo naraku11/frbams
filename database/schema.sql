@@ -265,8 +265,70 @@ CREATE TABLE IF NOT EXISTS `devices` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- SECTION 5 · ACADEMIC: DEPARTMENTS, COURSES, SCHEDULES, SESSIONS
+-- SECTION 5 · ACADEMIC: PROGRAMS, CURRICULA, SECTIONS, DEPARTMENTS, COURSES
 -- =============================================================================
+
+-- Degree programs offered by the school (BSCS, BSEd, BSBA …)
+CREATE TABLE IF NOT EXISTS `programs` (
+  `id`            SMALLINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  `school_id`     SMALLINT UNSIGNED  NOT NULL,
+  `code`          VARCHAR(20)        NOT NULL,        -- "BSCS", "BSEd"
+  `name`          VARCHAR(120)       NOT NULL,        -- "Bachelor of Science in Computer Science"
+  `department_id` SMALLINT UNSIGNED  DEFAULT NULL,
+  `description`   TEXT               DEFAULT NULL,
+  `is_active`     TINYINT(1)         NOT NULL DEFAULT 1,
+  `created_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_program_code` (`school_id`, `code`),
+  KEY `idx_program_school` (`school_id`),
+  CONSTRAINT `fk_program_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_program_dept`   FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Curriculum versions tied to a program (BSCS 2018 Curriculum, BSCS 2023 Curriculum …)
+CREATE TABLE IF NOT EXISTS `curricula` (
+  `id`               SMALLINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  `school_id`        SMALLINT UNSIGNED  NOT NULL,
+  `program_id`       SMALLINT UNSIGNED  DEFAULT NULL,
+  `code`             VARCHAR(30)        NOT NULL,        -- "BSCS-2023"
+  `name`             VARCHAR(120)       NOT NULL,        -- "BSCS 2023 Curriculum"
+  `year_implemented` YEAR               DEFAULT NULL,    -- 2023
+  `description`      TEXT               DEFAULT NULL,
+  `is_active`        TINYINT(1)         NOT NULL DEFAULT 1,
+  `created_at`       TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_curriculum_code` (`school_id`, `code`),
+  KEY `idx_curriculum_school`  (`school_id`),
+  KEY `idx_curriculum_program` (`program_id`),
+  CONSTRAINT `fk_curriculum_school`   FOREIGN KEY (`school_id`)  REFERENCES `schools`   (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_curriculum_program`  FOREIGN KEY (`program_id`) REFERENCES `programs`  (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Academic sections (BSCS-3A, BSIT-2B …) linked to a curriculum
+CREATE TABLE IF NOT EXISTS `sections` (
+  `id`            SMALLINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  `school_id`     SMALLINT UNSIGNED  NOT NULL,
+  `curriculum_id` SMALLINT UNSIGNED  DEFAULT NULL,
+  `name`          VARCHAR(40)        NOT NULL,        -- "3A", "BSCS-3A"
+  `year_level`    TINYINT UNSIGNED   DEFAULT NULL,    -- 1, 2, 3, 4
+  `adviser_id`    INT UNSIGNED       DEFAULT NULL,    -- faculty adviser
+  `room_id`       SMALLINT UNSIGNED  DEFAULT NULL,    -- home room
+  `max_students`  SMALLINT UNSIGNED  NOT NULL DEFAULT 40,
+  `academic_year` VARCHAR(20)        DEFAULT NULL,    -- "2024-2025"
+  `is_active`     TINYINT(1)         NOT NULL DEFAULT 1,
+  `created_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_section_name` (`school_id`, `name`, `academic_year`),
+  KEY `idx_section_school`     (`school_id`),
+  KEY `idx_section_curriculum` (`curriculum_id`),
+  CONSTRAINT `fk_section_school`      FOREIGN KEY (`school_id`)     REFERENCES `schools`   (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_section_curriculum`  FOREIGN KEY (`curriculum_id`) REFERENCES `curricula` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_section_adviser`     FOREIGN KEY (`adviser_id`)    REFERENCES `users`     (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_section_room`        FOREIGN KEY (`room_id`)       REFERENCES `rooms`     (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `departments` (
   `id`            SMALLINT UNSIGNED  NOT NULL AUTO_INCREMENT,
@@ -647,6 +709,35 @@ INSERT IGNORE INTO `cameras` (`school_id`, `code`, `label`, `location`, `status`
   (1,'B2','North · B2', 'North Wing',     'online'),
   (1,'C1','East · C1',  'East Courtyard', 'recalibrating'),
   (1,'D2','Library · D2','Library',       'online');
+
+-- Departments (seed before programs use them)
+INSERT IGNORE INTO `departments` (`school_id`, `name`) VALUES
+  (1, 'College of Computer Studies'),
+  (1, 'College of Education'),
+  (1, 'College of Business Administration'),
+  (1, 'College of Engineering');
+
+-- Programs
+INSERT IGNORE INTO `programs` (`school_id`, `code`, `name`, `department_id`) VALUES
+  (1, 'BSCS',  'Bachelor of Science in Computer Science',     1),
+  (1, 'BSIT',  'Bachelor of Science in Information Technology', 1),
+  (1, 'BSEd',  'Bachelor of Secondary Education',            2),
+  (1, 'BSBA',  'Bachelor of Science in Business Administration', 3);
+
+-- Curricula
+INSERT IGNORE INTO `curricula` (`school_id`, `program_id`, `code`, `name`, `year_implemented`) VALUES
+  (1, 1, 'BSCS-2023', 'BSCS 2023 Curriculum',  2023),
+  (1, 2, 'BSIT-2023', 'BSIT 2023 Curriculum',  2023),
+  (1, 3, 'BSED-2022', 'BSEd 2022 Curriculum',  2022),
+  (1, 4, 'BSBA-2022', 'BSBA 2022 Curriculum',  2022);
+
+-- Sections
+INSERT IGNORE INTO `sections` (`school_id`, `curriculum_id`, `name`, `year_level`, `max_students`, `academic_year`) VALUES
+  (1, 1, 'BSCS-1A', 1, 40, '2024-2025'),
+  (1, 1, 'BSCS-2A', 2, 40, '2024-2025'),
+  (1, 1, 'BSCS-3A', 3, 40, '2024-2025'),
+  (1, 2, 'BSIT-1A', 1, 40, '2024-2025'),
+  (1, 2, 'BSIT-2A', 2, 40, '2024-2025');
 
 -- Notification rules (all on by default)
 INSERT IGNORE INTO `notification_rules`
