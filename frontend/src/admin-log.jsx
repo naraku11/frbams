@@ -14,10 +14,15 @@ function AttendanceLog() {
   const [date,   setDate]   = useState(today())
   const [status, setStatus] = useState('')
   const [grade,  setGrade]  = useState('')
+  const [grades, setGrades] = useState([])
   const [rows,   setRows]   = useState([])
   const [loading, setLoading] = useState(false)
   const [menu,   setMenu]   = useState(null)
   const [overriding, setOverriding] = useState(null)
+
+  useEffect(() => {
+    api.grades().then(setGrades).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const close = () => setMenu(null)
@@ -51,8 +56,6 @@ function AttendanceLog() {
     { label: 'Late',    value: 'late' },
     { label: 'Absent',  value: 'absent' },
   ]
-
-  const grades = ['10A', '10B', '11A', '11B', '12A', '12B']
 
   const exportCSV = () => {
     const header = 'Student,ID,Grade,Time,Method,Status,Location,Camera,Confidence'
@@ -113,7 +116,7 @@ function AttendanceLog() {
               onChange={e => setGrade(e.target.value)}
             >
               <option value="">All grades</option>
-              {grades.map(g => <option key={g}>{g}</option>)}
+              {grades.map(g => <option key={g.id} value={g.label}>{g.label}</option>)}
             </select>
           </div>
 
@@ -139,7 +142,7 @@ function AttendanceLog() {
                 ) : rows.length === 0 ? (
                   <tr><td colSpan={10} style={{padding:32, textAlign:'center', color:'var(--fg-3)'}}>No records for this date.</td></tr>
                 ) : rows.map((r) => (
-                  <tr key={r.id + r.time}>
+                  <tr key={r.recId}>
                     <td style={{paddingLeft:20}}><input type="checkbox" /></td>
                     <td>
                       <div style={{display:"flex", alignItems:"center", gap:10}}>

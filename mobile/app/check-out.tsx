@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { XIcon } from '../components/Icons';
 import { C, radius } from '../lib/colors';
+import { api } from '../lib/api';
 
 function ClockOutIcon() {
   return (
@@ -27,21 +28,58 @@ function SessionRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatDuration(from: string, to: Date): string {
+  const start = new Date(from);
+  const diffMs = to.getTime() - start.getTime();
+  if (diffMs <= 0) return '—';
+  const totalMins = Math.floor(diffMs / 60000);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 export default function CheckOutScreen() {
-  const router  = useRouter();
+  const router   = useRouter();
   const [loading, setLoading]   = useState(false);
   const [done, setDone]         = useState(false);
+  const [error, setError]       = useState('');
+  const [checkInTime, setCheckInTime] = useState<string | null>(null);
 
-  const now      = new Date();
-  const timeStr  = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const dateStr  = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  const now     = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+  // Fetch today's check-in time from the API to show accurate session info
+  useEffect(() => {
+    api.student.attendance({ month: now.toISOString().slice(0, 7) })
+      .then((records) => {
+        const today = now.toISOString().slice(0, 10);
+        const todayRecord = records.find((r) => r.recordDate === today && r.checkInTime);
+        if (todayRecord?.checkInTime) {
+          setCheckInTime(`${today}T${todayRecord.checkInTime}:00`);
+        }
+      })
+      .catch(() => {/* show — if unavailable */});
+  }, []);
 
   const onClockOut = async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    setDone(true);
+    setError('');
+    try {
+      await api.attendance.checkOut({ deviceUuid: 'mobile' });
+      setDone(true);
+    } catch (e: any) {
+      setError(e?.message ?? 'Check-out failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const checkInDisplay = checkInTime
+    ? new Date(checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  const totalTime = checkInTime ? formatDuration(checkInTime, now) : '—';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -58,7 +96,7 @@ export default function CheckOutScreen() {
 
       <View style={styles.body}>
         {done ? (
-          /* ─── Done state ─── */
+          /* Done state */
           <>
             <View style={styles.iconWrap}>
               <Svg width={72} height={72} viewBox="0 0 72 72">
@@ -72,17 +110,17 @@ export default function CheckOutScreen() {
             <View style={styles.summaryCard}>
               <SessionRow label="DATE"        value={dateStr} />
               <View style={styles.divider} />
-              <SessionRow label="CHECK-IN"    value="08:42" />
+              <SessionRow label="CHECK-IN"    value={checkInDisplay} />
               <View style={styles.divider} />
               <SessionRow label="CHECK-OUT"   value={timeStr} />
               <View style={styles.divider} />
-              <SessionRow label="TOTAL TIME"  value="7h 18m" />
+              <SessionRow label="TOTAL TIME"  value={totalTime} />
             </View>
 
             <PrimaryButton label="Done" onPress={() => router.replace('/')} variant="dark" />
           </>
         ) : (
-          /* ─── Confirm state ─── */
+          /* Confirm state */
           <>
             <View style={styles.iconWrap}>
               <ClockOutIcon />
@@ -90,10 +128,16 @@ export default function CheckOutScreen() {
             <Text style={styles.confirmHeading}>End your school day?</Text>
             <Text style={styles.confirmSub}>This will record your check-out time for today.</Text>
 
+            {error ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.summaryCard}>
               <SessionRow label="DATE"       value={dateStr} />
               <View style={styles.divider} />
-              <SessionRow label="CHECK-IN"   value="08:42" />
+              <SessionRow label="CHECK-IN"   value={checkInDisplay} />
               <View style={styles.divider} />
               <SessionRow label="NOW"        value={timeStr} />
             </View>
@@ -170,4 +214,11 @@ const styles = StyleSheet.create({
   sessionLabel: { fontSize: 10.5, color: C.fg4, fontFamily: 'Courier', letterSpacing: 1 },
   sessionValue: { fontSize: 14, fontWeight: '600', color: C.fg },
   divider: { height: 1, backgroundColor: C.line, marginHorizontal: 18 },
+
+  errorBanner: {
+    backgroundColor: 'rgba(220,38,38,0.1)',
+    borderRadius: 8,
+    padding: 12,
+  },
+  errorText: { color: '#DC2626', fontSize: 13, textAlign: 'center' },
 });

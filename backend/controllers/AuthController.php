@@ -64,7 +64,7 @@ class AuthController
         }
 
         $stmt = db()->prepare(
-            'SELECT id, first_name, last_name, role, email, password_hash
+            'SELECT id, school_id, first_name, last_name, role, email, password_hash
              FROM   users WHERE email = ? AND is_active = 1 LIMIT 1'
         );
         $stmt->execute([$email]);
@@ -80,9 +80,10 @@ class AuthController
         $name  = trim($row['first_name'] . ' ' . $row['last_name']);
 
         $token = JWT::encode([
-            'sub'  => $row['id'],
-            'role' => $row['role'],
-            'name' => $name,
+            'sub'       => $row['id'],
+            'role'      => $row['role'],
+            'name'      => $name,
+            'school_id' => $row['school_id'],
         ], env('JWT_SECRET'), (int) env('JWT_TTL', '86400'));
 
         json_out([

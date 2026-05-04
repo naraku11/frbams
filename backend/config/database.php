@@ -15,7 +15,25 @@ function loadEnv(string $path): void
         if ($line === '' || str_starts_with($line, '#')) {
             continue;
         }
-        [$key, $value] = array_map('trim', explode('=', $line, 2));
+        $eqPos = strpos($line, '=');
+        if ($eqPos === false) {
+            continue; // malformed line — skip silently
+        }
+        $key   = trim(substr($line, 0, $eqPos));
+        $value = trim(substr($line, $eqPos + 1));
+
+        // Strip surrounding quotes (single or double)
+        if (strlen($value) >= 2
+            && (($value[0] === '"' && $value[-1] === '"')
+             || ($value[0] === "'" && $value[-1] === "'"))) {
+            $value = substr($value, 1, -1);
+        }
+
+        // Only alphanumeric+underscore keys are valid env var names
+        if (!preg_match('/^[A-Z][A-Z0-9_]*$/i', $key)) {
+            continue;
+        }
+
         if (!array_key_exists($key, $_ENV)) {
             $_ENV[$key]  = $value;
             putenv("{$key}={$value}");

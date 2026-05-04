@@ -45,8 +45,16 @@ class JWT
         if (!is_array($payload)) {
             throw new RuntimeException('Malformed payload');
         }
-        if (isset($payload['exp']) && $payload['exp'] < time()) {
+        // exp is mandatory — tokens without an expiry are rejected
+        if (!isset($payload['exp']) || !is_int($payload['exp'])) {
+            throw new RuntimeException('Token missing expiry');
+        }
+        if ($payload['exp'] < time()) {
             throw new RuntimeException('Token expired');
+        }
+        // Reject tokens issued more than 1 minute in the future (clock skew guard)
+        if (isset($payload['iat']) && is_int($payload['iat']) && $payload['iat'] > time() + 60) {
+            throw new RuntimeException('Token issued in the future');
         }
 
         return $payload;

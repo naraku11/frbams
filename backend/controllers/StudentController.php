@@ -7,7 +7,7 @@ class StudentController
     /** GET /student/me */
     public static function me(): void
     {
-        $payload = require_auth();
+        $payload = require_student();
         $id      = (int) $payload['sub'];
 
         $stmt = db()->prepare(
@@ -15,7 +15,7 @@ class StudentController
                     s.photo_url, g.label AS grade_label
              FROM   students s
              JOIN   grades   g ON g.id = s.grade_id
-             WHERE  s.id = ?'
+             WHERE  s.id = ? AND s.is_active = 1'
         );
         $stmt->execute([$id]);
         $row = $stmt->fetch();
@@ -37,7 +37,7 @@ class StudentController
     /** GET /student/me/attendance?month=2026-04 */
     public static function attendance(): void
     {
-        $payload = require_auth();
+        $payload = require_student();
         $id      = (int) $payload['sub'];
         $month   = $_GET['month'] ?? date('Y-m');
 
@@ -82,7 +82,7 @@ class StudentController
     /** GET /student/me/schedule?date=2026-04-26 */
     public static function schedule(): void
     {
-        $payload = require_auth();
+        $payload = require_student();
         $id      = (int) $payload['sub'];
         $date    = $_GET['date'] ?? date('Y-m-d');
 
@@ -134,7 +134,7 @@ class StudentController
     /** GET /student/me/term-rate */
     public static function termRate(): void
     {
-        $payload = require_auth();
+        $payload = require_student();
         $id      = (int) $payload['sub'];
 
         // Count school days with sessions for this student
@@ -161,7 +161,7 @@ class StudentController
     /** GET /student/me/leave-requests */
     public static function leaveRequests(): void
     {
-        $payload = require_auth();
+        $payload = require_student();
         $id      = (int) $payload['sub'];
 
         $stmt = db()->prepare(
@@ -188,13 +188,17 @@ class StudentController
     /** POST /student/me/leave-requests */
     public static function submitLeave(): void
     {
-        $payload  = require_auth();
+        $payload  = require_student();
         $id       = (int) $payload['sub'];
         $schoolId = (int) $payload['school_id'];
         $body     = body();
         $dateFrom = (string) required_field($body, 'dateFrom');
         $dateTo   = (string) required_field($body, 'dateTo');
-        $reason   = (string) required_field($body, 'reason');
+        $reason   = trim((string) required_field($body, 'reason'));
+
+        if (strlen($reason) > 1000) {
+            error_out('Reason must not exceed 1000 characters.');
+        }
 
         // Normalise type to match ENUM ('medical','family','school_event','personal','other')
         $typeMap  = ['medical' => 'medical', 'family' => 'family', 'school_event' => 'school_event',
@@ -204,6 +208,11 @@ class StudentController
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
             error_out('Invalid date format. Use YYYY-MM-DD.');
+        }
+
+        // Prevent leaving from a past date
+        if ($dateFrom > $dateTo) {
+            error_out('dateFrom must not be after dateTo.');
         }
 
         $pdo  = db();

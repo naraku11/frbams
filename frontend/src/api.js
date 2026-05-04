@@ -4,13 +4,14 @@
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
-function token() {
+function getToken() {
   return localStorage.getItem('frbams_token') ?? ''
 }
 
 async function request(method, path, body) {
+  const tok = getToken()
   const headers = { 'Content-Type': 'application/json' }
-  if (token()) headers['Authorization'] = `Bearer ${token()}`
+  if (tok) headers['Authorization'] = `Bearer ${tok}`
 
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -19,7 +20,15 @@ async function request(method, path, body) {
   })
 
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
+  if (!res.ok) {
+    // Token expired or invalid — clear auth state
+    if (res.status === 401) {
+      localStorage.removeItem('frbams_token')
+      localStorage.removeItem('frbams_authed')
+      localStorage.removeItem('frbams_user')
+    }
+    throw new Error(json.error ?? `HTTP ${res.status}`)
+  }
   return json
 }
 
@@ -69,7 +78,7 @@ export const api = {
   uploadAsset: (file) => {
     const form = new FormData()
     form.append('file', file)
-    const tok = localStorage.getItem('frbams_token') ?? ''
+    const tok = getToken()
     return fetch(`${BASE}/admin/upload-asset`, {
       method: 'POST',
       headers: tok ? { Authorization: `Bearer ${tok}` } : {},

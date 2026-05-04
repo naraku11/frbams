@@ -7,30 +7,33 @@ class AdminController
     /** GET /admin/dashboard */
     public static function dashboard(): void
     {
-        require_admin();
+        $user  = require_admin();
+        $sid   = (int) ($user['school_id'] ?? 1);
         $today = date('Y-m-d');
 
         $pdo = db();
 
-        $total    = (int) $pdo->query('SELECT COUNT(*) FROM students WHERE is_active = 1')->fetchColumn();
+        $totalStmt = $pdo->prepare('SELECT COUNT(*) FROM students WHERE is_active = 1 AND school_id = ?');
+        $totalStmt->execute([$sid]);
+        $total = (int) $totalStmt->fetchColumn();
 
         $presentStmt = $pdo->prepare(
             "SELECT COUNT(DISTINCT student_id) AS n FROM attendance_records
-             WHERE record_date = ? AND status IN ('present','late')"
+             WHERE record_date = ? AND status IN ('present','late') AND school_id = ?"
         );
-        $presentStmt->execute([$today]);
+        $presentStmt->execute([$today, $sid]);
         $present = (int) $presentStmt->fetchColumn();
 
         $lateStmt = $pdo->prepare(
-            "SELECT COUNT(*) AS n FROM attendance_records WHERE record_date = ? AND status = 'late'"
+            "SELECT COUNT(*) AS n FROM attendance_records WHERE record_date = ? AND status = 'late' AND school_id = ?"
         );
-        $lateStmt->execute([$today]);
+        $lateStmt->execute([$today, $sid]);
         $late = (int) $lateStmt->fetchColumn();
 
         $absentStmt = $pdo->prepare(
-            "SELECT COUNT(*) AS n FROM attendance_records WHERE record_date = ? AND status = 'absent'"
+            "SELECT COUNT(*) AS n FROM attendance_records WHERE record_date = ? AND status = 'absent' AND school_id = ?"
         );
-        $absentStmt->execute([$today]);
+        $absentStmt->execute([$today, $sid]);
         $absent = (int) $absentStmt->fetchColumn();
 
         // Recent check-ins
@@ -45,24 +48,25 @@ class AdminController
              JOIN   grades   g ON g.id = s.grade_id
              LEFT JOIN course_sessions cs ON cs.id = ar.session_id
              LEFT JOIN courses          c  ON c.id  = cs.course_id
-             WHERE  ar.record_date = ?
+             WHERE  ar.record_date = ? AND ar.school_id = ?
              ORDER  BY ar.check_in_time DESC
              LIMIT  20"
         );
-        $recentStmt->execute([$today]);
+        $recentStmt->execute([$today, $sid]);
         $recent = $recentStmt->fetchAll();
 
         // 7-day attendance bars
         $barStmt = $pdo->prepare(
             "SELECT record_date AS d,
                     ROUND(COUNT(DISTINCT CASE WHEN status IN ('present','late') THEN student_id END)
-                          / NULLIF((SELECT COUNT(*) FROM students WHERE is_active = 1), 0) * 100) AS v
+                          / NULLIF((SELECT COUNT(*) FROM students WHERE is_active = 1 AND school_id = ?), 0) * 100) AS v
              FROM   attendance_records
              WHERE  record_date BETWEEN DATE_SUB(?, INTERVAL 6 DAY) AND ?
+               AND  school_id = ?
              GROUP  BY record_date
              ORDER  BY record_date"
         );
-        $barStmt->execute([$today, $today]);
+        $barStmt->execute([$sid, $today, $today, $sid]);
         $barMap = [];
         foreach ($barStmt->fetchAll() as $b) {
             $barMap[$b['d']] = (int) $b['v'];
@@ -106,15 +110,16 @@ class AdminController
     /** GET /admin/students?grade=&search=&page= */
     public static function students(): void
     {
-        require_admin();
-        $grade  = $_GET['grade']  ?? '';
-        $search = $_GET['search'] ?? '';
-        $page   = max(1, (int) ($_GET['page'] ?? 1));
-        $limit  = 50;
-        $offset = ($page - 1) * $limit;
+        $user     = require_admin();
+        $schoolId = (int) ($user['school_id'] ?? 1);
+        $grade    = $_GET['grade']  ?? '';
+        $search   = $_GET['search'] ?? '';
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $limit    = 50;
+        $offset   = ($page - 1) * $limit;
 
-        $where  = ['s.is_active = 1'];
-        $params = [];
+        $where  = ['s.is_active = 1', 's.school_id = ?'];
+        $params = [$schoolId];
 
         if ($grade !== '') {
             $where[]  = 'g.label = ?';
@@ -160,9 +165,10 @@ class AdminController
     /** GET /admin/students/:id */
     public static function studentDetail(string $id): void
     {
-        require_admin();
-        $sid = (int) $id;
-        $pdo = db();
+        $user     = require_admin();
+        $schoolId = (int) ($user['school_id'] ?? 1);
+        $sid      = (int) $id;
+        $pdo      = db();
 
         $stmt = $pdo->prepare(
             "SELECT s.id, s.student_code AS studentCode,
@@ -174,9 +180,9 @@ class AdminController
              FROM   students s
              JOIN   grades g ON g.id = s.grade_id
              LEFT JOIN v_student_attendance_rate v ON v.student_id = s.id
-             WHERE  s.id = ? AND s.is_active = 1"
+             WHERE  s.id = ? AND s.school_id = ? AND s.is_active = 1"
         );
-        $stmt->execute([$sid]);
+        $stmt->execute([$sid, $schoolId]);
         $student = $stmt->fetch();
         if (!$student) error_out('Student not found', 404);
 
@@ -197,7 +203,8 @@ class AdminController
     /** GET /admin/attendance?date=&grade=&status= */
     public static function attendance(): void
     {
-        require_admin();
+        $user   = require_admin();
+        $sid    = (int) ($user['school_id'] ?? 1);
         $date   = $_GET['date']   ?? date('Y-m-d');
         $grade  = $_GET['grade']  ?? '';
         $status = $_GET['status'] ?? '';
@@ -209,8 +216,8 @@ class AdminController
             error_out('Invalid status.');
         }
 
-        $where  = ['ar.record_date = ?'];
-        $params = [$date];
+        $where  = ['ar.record_date = ?', 'ar.school_id = ?'];
+        $params = [$date, $sid];
 
         if ($grade !== '') {
             $where[]  = 'g.label = ?';
@@ -252,7 +259,8 @@ class AdminController
     /** GET /admin/leave-requests?status= */
     public static function leaveRequests(): void
     {
-        require_admin();
+        $user   = require_admin();
+        $sid    = (int) ($user['school_id'] ?? 1);
         $status = $_GET['status'] ?? 'pending';
 
         if (!in_array($status, ['pending', 'approved', 'declined'], true)) {
@@ -271,11 +279,11 @@ class AdminController
              FROM   leave_requests lr
              JOIN   students s ON s.id = lr.student_id
              JOIN   grades   g ON g.id = s.grade_id
-             WHERE  lr.status = ?
+             WHERE  lr.status = ? AND lr.school_id = ?
              ORDER  BY lr.submitted_at DESC
              LIMIT  100"
         );
-        $stmt->execute([$status]);
+        $stmt->execute([$status, $sid]);
         json_out($stmt->fetchAll());
     }
 
@@ -283,22 +291,25 @@ class AdminController
     public static function approveLeave(string $id): void
     {
         $user = require_admin();
-        self::updateLeave((int) $id, 'approved', (int) $user['sub']);
+        $sid  = (int) ($user['school_id'] ?? 1);
+        self::updateLeave((int) $id, 'approved', (int) $user['sub'], $sid);
     }
 
     /** POST /admin/leave-requests/:id/decline */
     public static function declineLeave(string $id): void
     {
         $user = require_admin();
-        self::updateLeave((int) $id, 'declined', (int) $user['sub']);
+        $sid  = (int) ($user['school_id'] ?? 1);
+        self::updateLeave((int) $id, 'declined', (int) $user['sub'], $sid);
     }
 
-    private static function updateLeave(int $id, string $status, int $reviewedBy): void
+    private static function updateLeave(int $id, string $status, int $reviewedBy, int $schoolId): void
     {
         $stmt = db()->prepare(
-            'UPDATE leave_requests SET status = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?'
+            'UPDATE leave_requests SET status = ?, reviewed_by = ?, reviewed_at = NOW()
+             WHERE id = ? AND school_id = ?'
         );
-        $stmt->execute([$status, $reviewedBy, $id]);
+        $stmt->execute([$status, $reviewedBy, $id, $schoolId]);
         if ($stmt->rowCount() === 0) {
             error_out('Leave request not found', 404);
         }
@@ -308,7 +319,8 @@ class AdminController
     /** GET /admin/notifications?limit=50&type= */
     public static function notifications(): void
     {
-        require_admin();
+        $user  = require_admin();
+        $sid   = (int) ($user['school_id'] ?? 1);
         $limit = min(100, max(1, (int) ($_GET['limit'] ?? 50)));
         $type  = $_GET['type'] ?? '';
 
@@ -323,10 +335,10 @@ class AdminController
                     ar.created_at AS ts
              FROM   attendance_records ar
              JOIN   students s ON s.id = ar.student_id
-             WHERE  ar.status = 'absent' AND ar.record_date = ?
+             WHERE  ar.status = 'absent' AND ar.record_date = ? AND ar.school_id = ?
              ORDER  BY ar.created_at DESC LIMIT 20"
         );
-        $absentStmt->execute([$today]);
+        $absentStmt->execute([$today, $sid]);
 
         $lateStmt = $pdo->prepare(
             "SELECT 'late' AS type,
@@ -336,10 +348,10 @@ class AdminController
                     ar.check_in_time AS ts
              FROM   attendance_records ar
              JOIN   students s ON s.id = ar.student_id
-             WHERE  ar.status = 'late' AND ar.record_date = ?
+             WHERE  ar.status = 'late' AND ar.record_date = ? AND ar.school_id = ?
              ORDER  BY ar.check_in_time DESC LIMIT 20"
         );
-        $lateStmt->execute([$today]);
+        $lateStmt->execute([$today, $sid]);
 
         $leaveStmt = $pdo->prepare(
             "SELECT 'leave' AS type,
@@ -349,21 +361,22 @@ class AdminController
                     lr.submitted_at AS ts
              FROM   leave_requests lr
              JOIN   students s ON s.id = lr.student_id
-             WHERE  lr.status = 'pending'
+             WHERE  lr.status = 'pending' AND lr.school_id = ?
              ORDER  BY lr.submitted_at DESC LIMIT 20"
         );
-        $leaveStmt->execute([]);
+        $leaveStmt->execute([$sid]);
 
-        $camStmt = $pdo->query(
+        $camStmt = $pdo->prepare(
             "SELECT 'system' AS type,
                     CONCAT('Camera: ',label) AS who,
                     CONCAT(status,' detected') AS text,
                     NULL AS studentCode,
                     last_seen_at AS ts
              FROM   cameras
-             WHERE  status != 'online'
+             WHERE  status != 'online' AND school_id = ?
              ORDER  BY last_seen_at DESC LIMIT 5"
         );
+        $camStmt->execute([$sid]);
 
         $all = array_merge(
             $absentStmt->fetchAll(),
@@ -384,25 +397,30 @@ class AdminController
     /** GET /admin/cameras */
     public static function cameras(): void
     {
-        require_admin();
-        $stmt = db()->query(
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
             "SELECT c.id, c.code, c.label, c.location, c.status,
                     c.quality_score AS quality, c.last_seen_at AS lastSeen,
                     r.name AS room
              FROM   cameras c
              LEFT JOIN rooms r ON r.id = c.room_id
+             WHERE  c.school_id = ?
              ORDER  BY c.label"
         );
+        $stmt->execute([$sid]);
         json_out($stmt->fetchAll());
     }
 
     /** GET /admin/grades */
     public static function grades(): void
     {
-        require_admin();
-        $stmt = db()->query(
-            'SELECT id, label FROM grades WHERE is_active = 1 ORDER BY label'
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare(
+            'SELECT id, label FROM grades WHERE is_active = 1 AND school_id = ? ORDER BY label'
         );
+        $stmt->execute([$sid]);
         json_out($stmt->fetchAll());
     }
 
@@ -436,7 +454,13 @@ class AdminController
             error_out('Student code already exists', 409);
         }
 
-        $hash = password_hash('Student@1234', PASSWORD_BCRYPT);
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            error_out('Invalid email address', 422);
+        }
+
+        // Generate a random 12-char temporary password; the student must change it on first login.
+        $tempPassword = bin2hex(random_bytes(6)); // 12 hex chars
+        $hash         = password_hash($tempPassword, PASSWORD_BCRYPT);
 
         db()->prepare(
             'INSERT INTO students
@@ -450,9 +474,10 @@ class AdminController
         ]);
 
         json_out([
-            'studentCode' => $studentCode,
-            'name'        => "{$firstName} {$lastName}",
-            'grade'       => $gradeLabel,
+            'studentCode'     => $studentCode,
+            'name'            => "{$firstName} {$lastName}",
+            'grade'           => $gradeLabel,
+            'tempPassword'    => $tempPassword, // shown once — student should change on first login
         ], 201);
     }
 
@@ -526,7 +551,8 @@ class AdminController
     /** GET /admin/reports?month=2026-04 */
     public static function reports(): void
     {
-        require_admin();
+        $user  = require_admin();
+        $sid   = (int) ($user['school_id'] ?? 1);
         $month = $_GET['month'] ?? date('Y-m');
 
         if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
@@ -540,14 +566,15 @@ class AdminController
             "SELECT ar.record_date AS date,
                     COUNT(DISTINCT ar.student_id)                                  AS present,
                     COUNT(DISTINCT CASE WHEN ar.status='late' THEN ar.student_id END) AS late,
-                    (SELECT COUNT(*) FROM students WHERE is_active = 1)            AS enrolled
+                    (SELECT COUNT(*) FROM students WHERE is_active = 1 AND school_id = ?) AS enrolled
              FROM   attendance_records ar
              WHERE  DATE_FORMAT(ar.record_date, '%Y-%m') = ?
                AND  ar.status IN ('present','late')
+               AND  ar.school_id = ?
              GROUP  BY ar.record_date
              ORDER  BY ar.record_date"
         );
-        $dailyStmt->execute([$month]);
+        $dailyStmt->execute([$sid, $month, $sid]);
         $daily = $dailyStmt->fetchAll();
 
         // By course
@@ -573,24 +600,28 @@ class AdminController
     /** GET /admin/badge-counts */
     public static function badgeCounts(): void
     {
-        require_admin();
+        $user  = require_admin();
+        $sid   = (int) ($user['school_id'] ?? 1);
         $pdo   = db();
         $today = date('Y-m-d');
 
         $ciStmt = $pdo->prepare(
             "SELECT COUNT(DISTINCT student_id) FROM attendance_records
-             WHERE record_date = ? AND status IN ('present','late')"
+             WHERE record_date = ? AND status IN ('present','late') AND school_id = ?"
         );
-        $ciStmt->execute([$today]);
+        $ciStmt->execute([$today, $sid]);
 
         $lvStmt = $pdo->prepare(
-            "SELECT COUNT(*) FROM leave_requests WHERE status = 'pending'"
+            "SELECT COUNT(*) FROM leave_requests WHERE status = 'pending' AND school_id = ?"
         );
-        $lvStmt->execute([]);
+        $lvStmt->execute([$sid]);
+
+        $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM students WHERE is_active = 1 AND school_id = ?");
+        $totalStmt->execute([$sid]);
 
         json_out([
             'todayCheckins' => (int) $ciStmt->fetchColumn(),
-            'totalStudents' => (int) $pdo->query("SELECT COUNT(*) FROM students WHERE is_active = 1")->fetchColumn(),
+            'totalStudents' => (int) $totalStmt->fetchColumn(),
             'pendingLeave'  => (int) $lvStmt->fetchColumn(),
         ]);
     }
@@ -794,21 +825,27 @@ class AdminController
     /** PATCH /admin/attendance/:id */
     public static function updateAttendance(string $id): void
     {
-        $user   = require_admin();
-        $recId  = (int) $id;
-        $body   = body();
-        $status = trim((string) ($body['status'] ?? ''));
-        $notes  = trim((string) ($body['notes']  ?? ''));
+        $user     = require_admin();
+        $sid      = (int) ($user['school_id'] ?? 1);
+        $recId    = (int) $id;
+        $body     = body();
+        $status   = trim((string) ($body['status'] ?? ''));
+        $notes    = trim((string) ($body['notes']  ?? ''));
 
         if (!in_array($status, ['present', 'late', 'absent', 'excused'], true)) {
             error_out('Invalid status. Must be present, late, absent, or excused.');
         }
 
-        db()->prepare(
+        $stmt = db()->prepare(
             "UPDATE attendance_records
              SET status = ?, reviewed_by = ?, reviewed_at = NOW(), notes = ?
-             WHERE id = ?"
-        )->execute([$status, (int) $user['sub'], $notes ?: null, $recId]);
+             WHERE id = ? AND school_id = ?"
+        );
+        $stmt->execute([$status, (int) $user['sub'], $notes ?: null, $recId, $sid]);
+
+        if ($stmt->rowCount() === 0) {
+            error_out('Attendance record not found', 404);
+        }
 
         json_out(['id' => $recId, 'status' => $status]);
     }
@@ -1106,26 +1143,36 @@ class AdminController
 
         if (empty($_FILES['file'])) error_out('No file provided', 400);
 
-        $file    = $_FILES['file'];
-        $mime    = $file['type'];
+        $file = $_FILES['file'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) error_out('Upload error', 400);
+        if ($file['size'] > 2097152)          error_out('Max file size is 2 MB', 413);
+
+        // Use finfo to detect the REAL MIME type — never trust the client-supplied value.
+        $finfo    = new finfo(FILEINFO_MIME_TYPE);
+        $realMime = $finfo->file($file['tmp_name']);
+
         $allowed = [
             'image/png'               => 'png',
             'image/jpeg'              => 'jpg',
             'image/gif'               => 'gif',
             'image/webp'              => 'webp',
-            'image/svg+xml'           => 'svg',
             'image/x-icon'            => 'ico',
             'image/vnd.microsoft.icon'=> 'ico',
+            // SVG is intentionally excluded — SVGs can embed JavaScript and are
+            // dangerous to serve from the same origin. If needed, serve from a CDN.
         ];
 
-        if (!isset($allowed[$mime]))      error_out('File type not allowed', 415);
-        if ($file['size'] > 2097152)      error_out('Max file size is 2 MB', 413);
-        if ($file['error'] !== UPLOAD_ERR_OK) error_out('Upload error', 400);
+        if (!isset($allowed[$realMime])) error_out('File type not allowed', 415);
 
         $uploadDir = __DIR__ . '/../uploads/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+        if (!is_dir($uploadDir)) {
+            if (!mkdir($uploadDir, 0750, true)) {
+                error_out('Could not create upload directory', 500);
+            }
+        }
 
-        $filename = bin2hex(random_bytes(8)) . '.' . $allowed[$mime];
+        $filename = bin2hex(random_bytes(16)) . '.' . $allowed[$realMime];
         if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
             error_out('Could not save file', 500);
         }

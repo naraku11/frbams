@@ -4,7 +4,7 @@ import { api } from './api'
 
 export default function Login() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState('admin@uv.edu.ph')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -108,7 +108,7 @@ export default function Login() {
         </div>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--fg-4)' }}>
-          Default: admin@uv.edu.ph / Admin@1234
+          Contact your system administrator for login credentials.
         </p>
       </div>
     </div>

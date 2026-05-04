@@ -41,6 +41,16 @@ function require_admin(): array
     return $payload;
 }
 
+/** Assert caller is an authenticated student. */
+function require_student(): array
+{
+    $payload = require_auth();
+    if (($payload['role'] ?? '') !== 'student') {
+        error_out('Forbidden', 403);
+    }
+    return $payload;
+}
+
 function body(): array
 {
     static $parsed = null;

@@ -2,12 +2,15 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GeofenceStatus } from '../lib/types';
 
-// Default geofence — overridden by API data at runtime
+// Default geofence — this MUST be overridden by real API data at runtime.
+// Using a zero-radius sentinel so that location checks fail safely (everyone is
+// "outside") until the real campus coordinates are loaded, rather than silently
+// granting access to students anywhere in the world.
 const DEFAULT_GEOFENCE = {
-  lat: 40.7128,
-  lng: -74.006,
-  radiusMeters: 150,
-  name: 'Main Campus',
+  lat: 0,
+  lng: 0,
+  radiusMeters: 0,
+  name: 'Campus (not configured)',
 };
 
 function haversineDistance(

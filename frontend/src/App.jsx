@@ -10,7 +10,9 @@ import { StudentList } from './students'
 import { Programs, Curricula, Sections } from './admin-academic'
 
 function Guard({ children }) {
+  // Require both the authed flag AND a non-empty token to be present
   const authed = localStorage.getItem('frbams_authed') === '1'
+              && !!localStorage.getItem('frbams_token')
   return authed ? children : <Navigate to="/login" replace />
 }
 

@@ -12,6 +12,7 @@ function Enrollment() {
   const [saving,  setSaving]  = React.useState(false)
   const [done,    setDone]    = React.useState(null)
   const [error,   setError]   = React.useState('')
+  const [copied,  setCopied]  = React.useState(false)
 
   React.useEffect(() => { api.grades().then(setGrades).catch(() => {}) }, [])
 
@@ -40,7 +41,7 @@ function Enrollment() {
             <div className="fm-eyebrow" style={{marginBottom:8}}>Admin · Enrollment</div>
             <h1 className="fm-h1">Enroll a new student</h1>
             <div className="fm-muted" style={{marginTop:6}}>
-              Fill in the student details below. A default password of <span className="mono">Student@1234</span> will be assigned.
+              Fill in the student details below. A secure one-time password will be generated — share it with the student so they can log in.
             </div>
           </div>
 
@@ -51,8 +52,21 @@ function Enrollment() {
                 background:'var(--accent-soft)', border:'1px solid var(--accent)',
                 fontSize:13, lineHeight:1.5,
               }}>
-                <b style={{fontWeight:600}}>Enrolled:</b> {done.name} · <span className="mono">{done.studentCode}</span> · {done.grade}
-                <button className="fm-btn" style={{marginLeft:14, fontSize:11}} onClick={() => setDone(null)}>Enroll another</button>
+                <div><b style={{fontWeight:600}}>Enrolled:</b> {done.name} · <span className="mono">{done.studentCode}</span> · {done.grade}</div>
+                {done.tempPassword && (
+                  <div style={{marginTop:8, padding:'8px 12px', background:'var(--card)', borderRadius:7, display:'flex', alignItems:'center', gap:10}}>
+                    <span className="fm-muted" style={{fontSize:12}}>One-time password:</span>
+                    <span className="mono" style={{fontWeight:700, fontSize:14, flex:1}}>{done.tempPassword}</span>
+                    <button className="fm-btn" style={{fontSize:11}} onClick={() => {
+                      navigator.clipboard?.writeText(done.tempPassword)
+                      setCopied(true); setTimeout(() => setCopied(false), 2000)
+                    }}>{copied ? 'Copied!' : 'Copy'}</button>
+                  </div>
+                )}
+                <div style={{marginTop:10, fontSize:11.5, color:'var(--fg-3)'}}>
+                  Share this password with the student. It will not be shown again.
+                </div>
+                <button className="fm-btn" style={{marginTop:10, fontSize:11}} onClick={() => { setDone(null); setCopied(false) }}>Enroll another</button>
               </div>
             )}
 
@@ -407,15 +421,21 @@ function SettingsAppearance() {
 
 function SettingsRecognition() {
   const [cfg, setCfg] = React.useState(null)
+  const saveTimer = React.useRef(null)
 
   React.useEffect(() => {
     api.recognitionSettings().then(setCfg).catch(() => {})
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [])
 
   const save = (patch) => {
     const next = { ...cfg, ...patch }
     setCfg(next)
-    api.saveRecognitionSettings(next).catch(() => {})
+    // Debounce API calls to avoid a request per slider pixel
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      api.saveRecognitionSettings(next).catch(() => {})
+    }, 400)
   }
 
   const threshold = cfg?.confidenceThreshold ?? 96

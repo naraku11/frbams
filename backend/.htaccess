@@ -4,3 +4,17 @@ Options -Indexes +FollowSymLinks
 <FilesMatch "^(\.env|\.env\.example|composer\.json|composer\.lock)$">
     Require all denied
 </FilesMatch>
+
+# Prevent executing PHP scripts uploaded via the asset uploader
+<Directory "uploads">
+    <FilesMatch "\.php$">
+        Require all denied
+    </FilesMatch>
+    Options -ExecCGI
+    php_flag engine off
+</Directory>
+
+# Security headers
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"

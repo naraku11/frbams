@@ -32,8 +32,14 @@ $allowed = array_filter(array_map(
 
 if (in_array($origin, $allowed, true) || env('APP_ENV') === 'development') {
     header("Access-Control-Allow-Origin: {$origin}");
+    header('Vary: Origin');
 } else {
-    header('Access-Control-Allow-Origin: ' . (rtrim(env('FRONTEND_URL'), '/') ?: '*'));
+    // Deny unknown origins — do not fall back to wildcard (*) as that would
+    // allow any website to make credentialed requests against this API.
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['error' => 'Origin not allowed']);
+    exit;
 }
 
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');

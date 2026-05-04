@@ -7,7 +7,7 @@ class AttendanceController
     /** POST /attendance/check-in */
     public static function checkIn(): void
     {
-        $payload  = require_auth();
+        $payload  = require_student();
         $sid      = (int) $payload['sub'];
         $schoolId = (int) $payload['school_id'];
         $body     = body();
@@ -23,11 +23,29 @@ class AttendanceController
             error_out('Invalid capturedAt format. Use YYYY-MM-DDTHH:MM:SS.');
         }
 
+        // Validate deviceUuid — must be a UUID v4 or similar hex token (max 64 chars)
+        $deviceUuid = substr(preg_replace('/[^a-zA-Z0-9\-]/', '', $deviceUuid), 0, 64);
+        if ($deviceUuid === '') {
+            error_out('Invalid deviceUuid');
+        }
+
+        // Reject capturedAt timestamps more than 15 minutes in the future or more
+        // than 24 hours in the past — prevents time-manipulation abuse.
+        $capturedTs = strtotime($capturedAt);
+        if ($capturedTs === false || $capturedTs > time() + 900 || $capturedTs < time() - 86400) {
+            error_out('capturedAt timestamp is out of acceptable range.');
+        }
+
         $confidence   = isset($body['confidence'])        ? (float) $body['confidence']        : null;
         $lat          = isset($body['locationLat'])        ? (float) $body['locationLat']        : null;
         $lng          = isset($body['locationLng'])        ? (float) $body['locationLng']        : null;
         $geofenceId   = isset($body['geofenceId'])         ? (int)   $body['geofenceId']         : null;
         $distanceM    = isset($body['distanceM'])          ? (float) $body['distanceM']          : null;
+
+        // Clamp confidence to [0, 1]
+        if ($confidence !== null) {
+            $confidence = max(0.0, min(1.0, $confidence));
+        }
 
         $pdo   = db();
         $today = date('Y-m-d');
@@ -97,7 +115,7 @@ class AttendanceController
     /** POST /attendance/check-out */
     public static function checkOut(): void
     {
-        $payload = require_auth();
+        $payload = require_student();
         $sid     = (int) $payload['sub'];
         $body    = body();
 
@@ -131,7 +149,7 @@ class AttendanceController
     /** POST /attendance/sync — bulk offline queue sync from mobile */
     public static function sync(): void
     {
-        $payload  = require_auth();
+        $payload  = require_student();
         $sid      = (int) $payload['sub'];
         $schoolId = (int) $payload['school_id'];
         $body     = body();
@@ -140,6 +158,9 @@ class AttendanceController
         if (!is_array($events)) {
             error_out('events must be an array');
         }
+
+        // Limit bulk sync to 500 events per request to prevent DoS
+        $events = array_slice($events, 0, 500);
 
         $synced    = 0;
         $conflicts = 0;
@@ -154,6 +175,11 @@ class AttendanceController
             if (!$capturedAt || !preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/', $capturedAt) || !in_array($method, ['face', 'pin'], true)) {
                 $conflicts++;
                 continue;
+            }
+
+            // Clamp confidence to [0, 1]
+            if ($confidence !== null) {
+                $confidence = max(0.0, min(1.0, $confidence));
             }
 
             $date = substr($capturedAt, 0, 10);
