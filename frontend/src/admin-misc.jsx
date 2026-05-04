@@ -826,7 +826,8 @@ const EVENT_LABELS = {
   absent:            'Absent student',
   late:              'Late arrival',
   consecutive_absent:'Consecutive absences',
-  leave:             'Leave request submitted',
+  leave_submitted:   'Leave request submitted',
+  leave_reviewed:    'Leave request reviewed',
   camera_offline:    'Camera offline',
   sync_complete:     'Sync completed',
 }
@@ -1037,6 +1038,354 @@ function SettingsBranding() {
   )
 }
 
+// ── Privacy & Retention ───────────────────────────────────────────────────────
+
+function SettingsPrivacy() {
+  const [form, setForm] = React.useState({
+    dataRetentionMonths: 24, biometricRetentionMonths: 12,
+    requireBiometricConsent: true, anonymizeOnLeave: false,
+    autoArchiveInactiveMonths: '',
+  })
+  const [saving, setSaving] = React.useState(false)
+  const [saved,  setSaved]  = React.useState(false)
+  const [error,  setError]  = React.useState('')
+
+  React.useEffect(() => {
+    api.privacySettings().then(d => setForm({
+      dataRetentionMonths:       d.dataRetentionMonths      ?? 24,
+      biometricRetentionMonths:  d.biometricRetentionMonths ?? 12,
+      requireBiometricConsent:   Boolean(d.requireBiometricConsent   ?? true),
+      anonymizeOnLeave:          Boolean(d.anonymizeOnLeave           ?? false),
+      autoArchiveInactiveMonths: d.autoArchiveInactiveMonths != null ? d.autoArchiveInactiveMonths : '',
+    })).catch(() => {})
+  }, [])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const save = async () => {
+    setSaving(true); setError('')
+    try {
+      await api.savePrivacySettings({
+        ...form,
+        autoArchiveInactiveMonths: form.autoArchiveInactiveMonths !== '' ? parseInt(form.autoArchiveInactiveMonths) : null,
+      })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (e) { setError(e.message) }
+    setSaving(false)
+  }
+
+  const toggleRows = [
+    { key: 'requireBiometricConsent', label: 'Require biometric consent form', desc: 'Students must sign a consent form before face templates are enrolled' },
+    { key: 'anonymizeOnLeave',        label: 'Anonymize data on student leave', desc: 'Replace name with an anonymous ID when a student is deactivated' },
+  ]
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div className="fm-card">
+        <h3 className="fm-h3" style={{ marginBottom:4 }}>Data retention</h3>
+        <div className="fm-muted" style={{ fontSize:12, marginBottom:18 }}>
+          Records older than the retention period are automatically purged. Affects storage and compliance.
+        </div>
+        <div style={{ display:'grid', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div>
+              <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:6 }}>Attendance records</div>
+              <select className="fm-input" value={form.dataRetentionMonths} onChange={e => set('dataRetentionMonths', parseInt(e.target.value))}>
+                {[6, 12, 24, 36, 60].map(m => <option key={m} value={m}>{m} months</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:6 }}>Biometric templates</div>
+              <select className="fm-input" value={form.biometricRetentionMonths} onChange={e => set('biometricRetentionMonths', parseInt(e.target.value))}>
+                {[3, 6, 12, 24].map(m => <option key={m} value={m}>{m} months</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:6 }}>Auto-archive inactive students after (months)</div>
+            <input
+              className="fm-input" type="number" min="1" max="60"
+              placeholder="Leave blank to disable"
+              value={form.autoArchiveInactiveMonths}
+              onChange={e => set('autoArchiveInactiveMonths', e.target.value)}
+              style={{ maxWidth:220 }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="fm-card" style={{ padding:0 }}>
+        {toggleRows.map((row, i, arr) => (
+          <div key={row.key} style={{
+            padding:'16px 20px', display:'flex', justifyContent:'space-between', alignItems:'center',
+            borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none', cursor:'pointer',
+          }} onClick={() => set(row.key, !form[row.key])}>
+            <div>
+              <div style={{ fontWeight:500, fontSize:13.5 }}>{row.label}</div>
+              <div className="fm-muted" style={{ fontSize:12, marginTop:2 }}>{row.desc}</div>
+            </div>
+            <div className={`fm-toggle ${form[row.key] ? 'on' : ''}`} />
+          </div>
+        ))}
+      </div>
+
+      {error && <div style={{ padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5 }}>{error}</div>}
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:10, alignItems:'center' }}>
+        {saved && <span style={{ fontSize:12.5, color:'var(--accent)' }}>Saved successfully</span>}
+        <button className="fm-btn primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save changes'}</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Integrations ──────────────────────────────────────────────────────────────
+
+function SettingsIntegrations() {
+  const [form, setForm] = React.useState({ notificationEmail:'', webhookUrl:'', smsProvider:'', smsApiKey:'' })
+  const [saving, setSaving] = React.useState(false)
+  const [saved,  setSaved]  = React.useState(false)
+  const [error,  setError]  = React.useState('')
+
+  React.useEffect(() => {
+    api.integrationSettings().then(d => setForm({
+      notificationEmail: d.notificationEmail ?? '',
+      webhookUrl:        d.webhookUrl        ?? '',
+      smsProvider:       d.smsProvider       ?? '',
+      smsApiKey:         d.smsApiKey         ?? '',
+    })).catch(() => {})
+  }, [])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const save = async () => {
+    setSaving(true); setError('')
+    try {
+      await api.saveIntegrationSettings(form)
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (e) { setError(e.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div className="fm-card">
+        <h3 className="fm-h3" style={{ marginBottom:4 }}>Notifications</h3>
+        <div className="fm-muted" style={{ fontSize:12, marginBottom:18 }}>Alert emails will be sent from this address.</div>
+        <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:6 }}>Sender email</div>
+        <input className="fm-input" type="email" value={form.notificationEmail} onChange={e => set('notificationEmail', e.target.value)} placeholder="alerts@school.edu" style={{ maxWidth:360 }} />
+      </div>
+
+      <div className="fm-card">
+        <h3 className="fm-h3" style={{ marginBottom:4 }}>Webhooks</h3>
+        <div className="fm-muted" style={{ fontSize:12, marginBottom:18 }}>POST attendance events to an external URL in real time (JSON payload).</div>
+        <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:6 }}>Webhook URL</div>
+        <input className="fm-input" value={form.webhookUrl} onChange={e => set('webhookUrl', e.target.value)} placeholder="https://your-system.example.com/webhook" />
+      </div>
+
+      <div className="fm-card">
+        <h3 className="fm-h3" style={{ marginBottom:4 }}>SMS gateway</h3>
+        <div className="fm-muted" style={{ fontSize:12, marginBottom:18 }}>Send absence alerts to guardian phone numbers via SMS.</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:12 }}>
+          <div>
+            <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:6 }}>Provider</div>
+            <select className="fm-input" value={form.smsProvider} onChange={e => set('smsProvider', e.target.value)}>
+              <option value="">None (disabled)</option>
+              <option value="semaphore">Semaphore (PH)</option>
+              <option value="vonage">Vonage</option>
+              <option value="twilio">Twilio</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          {form.smsProvider && (
+            <div>
+              <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:6 }}>API key</div>
+              <input className="fm-input mono" type="password" value={form.smsApiKey} onChange={e => set('smsApiKey', e.target.value)} placeholder="Your API key" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {error && <div style={{ padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5 }}>{error}</div>}
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:10, alignItems:'center' }}>
+        {saved && <span style={{ fontSize:12.5, color:'var(--accent)' }}>Saved successfully</span>}
+        <button className="fm-btn primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save changes'}</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Roles & Access ────────────────────────────────────────────────────────────
+
+const ROLE_LABELS = { admin:'Admin', vice_principal:'Vice Principal', teacher:'Teacher', staff:'Staff' }
+
+function SettingsRoles() {
+  const EMPTY_FORM = { firstName:'', lastName:'', email:'', role:'teacher', employeeCode:'', department:'' }
+  const [staffList, setStaffList] = React.useState(null)
+  const [adding,    setAdding]    = React.useState(false)
+  const [form,      setForm]      = React.useState(EMPTY_FORM)
+  const [saving,    setSaving]    = React.useState(false)
+  const [done,      setDone]      = React.useState(null)
+  const [error,     setError]     = React.useState('')
+  const [actingId,  setActingId]  = React.useState(null)
+  const [copiedPw,  setCopiedPw]  = React.useState(false)
+
+  const load = () => api.staff().then(setStaffList).catch(() => setStaffList([]))
+  React.useEffect(load, [])
+
+  const sf = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const addStaff = async () => {
+    if (!form.firstName || !form.lastName || !form.email) {
+      setError('First name, last name, and email are required.'); return
+    }
+    setSaving(true); setError('')
+    try {
+      const res = await api.createStaff(form)
+      setDone(res); setForm(EMPTY_FORM); setCopiedPw(false); load()
+    } catch (e) { setError(e.message) }
+    setSaving(false)
+  }
+
+  const toggleActive = async (member) => {
+    setActingId(member.id)
+    try {
+      await api.updateStaff(member.id, { isActive: member.isActive ? 0 : 1 })
+      setStaffList(prev => prev.map(s => s.id === member.id ? { ...s, isActive: s.isActive ? 0 : 1 } : s))
+    } catch (_) {}
+    setActingId(null)
+  }
+
+  const changeRole = async (member, role) => {
+    setActingId(member.id)
+    try {
+      await api.updateStaff(member.id, { role })
+      setStaffList(prev => prev.map(s => s.id === member.id ? { ...s, role } : s))
+    } catch (_) {}
+    setActingId(null)
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div className="fm-card" style={{ padding:0 }}>
+        <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--line-2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h3 className="fm-h3">Staff accounts</h3>
+          <button className="fm-btn primary" style={{ fontSize:12 }}
+            onClick={() => { setAdding(a => !a); setDone(null); setError('') }}>
+            {adding ? 'Cancel' : <><I.Plus size={13} /> Add staff</>}
+          </button>
+        </div>
+        {staffList === null ? (
+          <div style={{ padding:32, textAlign:'center', color:'var(--fg-3)', fontSize:13 }}>Loading…</div>
+        ) : (
+          <table className="fm-table">
+            <thead>
+              <tr>
+                <th style={{ paddingLeft:20 }}>Name</th>
+                <th>Role</th>
+                <th>Department</th>
+                <th>Last login</th>
+                <th>Status</th>
+                <th style={{ width:110 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {staffList.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding:32, textAlign:'center', color:'var(--fg-3)' }}>No staff accounts.</td></tr>
+              ) : staffList.map(s => (
+                <tr key={s.id} style={{ opacity: s.isActive ? 1 : 0.5 }}>
+                  <td style={{ paddingLeft:20 }}>
+                    <div style={{ fontWeight:500 }}>{s.firstName} {s.lastName}</div>
+                    <div className="mono fm-muted" style={{ fontSize:11 }}>{s.email}</div>
+                  </td>
+                  <td>
+                    <select
+                      className="fm-input"
+                      style={{ fontSize:12, padding:'3px 8px' }}
+                      value={s.role}
+                      disabled={actingId === s.id}
+                      onChange={e => changeRole(s, e.target.value)}
+                    >
+                      {Object.entries(ROLE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </td>
+                  <td className="fm-muted" style={{ fontSize:12.5 }}>{s.department || '—'}</td>
+                  <td className="mono fm-muted" style={{ fontSize:11.5 }}>{s.lastLoginAt || 'Never'}</td>
+                  <td><span className={`fm-pill ${s.isActive ? 'ok' : ''}`}>{s.isActive ? 'Active' : 'Inactive'}</span></td>
+                  <td>
+                    <button className="fm-btn" style={{ fontSize:11 }} disabled={actingId === s.id}
+                      onClick={() => toggleActive(s)}>
+                      {s.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {adding && (
+        <div className="fm-card">
+          <h3 className="fm-h3" style={{ marginBottom:14 }}>New staff member</h3>
+          {done && (
+            <div style={{ marginBottom:14, padding:'12px 16px', borderRadius:8, background:'var(--accent-soft)', border:'1px solid var(--accent)', fontSize:13 }}>
+              <b>{done.name}</b> added as {ROLE_LABELS[done.role] ?? done.role}.
+              <div style={{ marginTop:8, padding:'8px 12px', background:'var(--card)', borderRadius:6, display:'flex', alignItems:'center', gap:10 }}>
+                <span className="fm-muted" style={{ fontSize:12 }}>One-time password:</span>
+                <span className="mono" style={{ fontWeight:700, flex:1 }}>{done.tempPassword}</span>
+                <button className="fm-btn" style={{ fontSize:11 }} onClick={() => {
+                  navigator.clipboard?.writeText(done.tempPassword)
+                  setCopiedPw(true); setTimeout(() => setCopiedPw(false), 2000)
+                }}>{copiedPw ? 'Copied!' : 'Copy'}</button>
+              </div>
+              <div style={{ marginTop:8, fontSize:11.5, color:'var(--fg-3)' }}>Share this password — it will not be shown again.</div>
+            </div>
+          )}
+          <div style={{ display:'grid', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <div>
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>First name <span style={{ color:'var(--red)' }}>*</span></div>
+                <input className="fm-input" value={form.firstName} onChange={e => sf('firstName', e.target.value)} placeholder="e.g. Maria" />
+              </div>
+              <div>
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Last name <span style={{ color:'var(--red)' }}>*</span></div>
+                <input className="fm-input" value={form.lastName} onChange={e => sf('lastName', e.target.value)} placeholder="e.g. Reyes" />
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr', gap:10 }}>
+              <div>
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Email <span style={{ color:'var(--red)' }}>*</span></div>
+                <input className="fm-input" type="email" value={form.email} onChange={e => sf('email', e.target.value)} placeholder="staff@school.edu" />
+              </div>
+              <div>
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Role</div>
+                <select className="fm-input" value={form.role} onChange={e => sf('role', e.target.value)}>
+                  {Object.entries(ROLE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Employee ID</div>
+                <input className="fm-input mono" value={form.employeeCode} onChange={e => sf('employeeCode', e.target.value)} placeholder="EMP-001" />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Department <span className="fm-muted">(optional)</span></div>
+              <input className="fm-input" value={form.department} onChange={e => sf('department', e.target.value)} placeholder="e.g. Science" />
+            </div>
+          </div>
+          {error && <div style={{ marginTop:10, padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5 }}>{error}</div>}
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:14 }}>
+            <button className="fm-btn" onClick={() => { setAdding(false); setDone(null); setError('') }}>Cancel</button>
+            <button className="fm-btn primary" disabled={saving} onClick={addStaff}>
+              {saving ? 'Adding…' : <><I.Check size={13} /> Add staff member</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const SETTINGS_TABS = [
   { id: 'branding',      label: 'School Branding' },
   { id: 'appearance',    label: 'Appearance' },
@@ -1077,19 +1426,14 @@ function Settings() {
             </nav>
 
             <div>
-              {tab === 'branding'     && <SettingsBranding />}
-              {tab === 'appearance'   && <SettingsAppearance />}
-              {tab === 'recognition'  && <SettingsRecognition />}
-              {tab === 'cameras'      && <SettingsCameras />}
-              {tab === 'notifications'&& <SettingsNotifications />}
-              {(tab === 'privacy' || tab === 'integrations' || tab === 'roles') && (
-                <div className="fm-card" style={{
-                  color: 'var(--fg-3)', fontSize: 13,
-                  textAlign: 'center', padding: '40px 20px',
-                }}>
-                  {SETTINGS_TABS.find(t => t.id === tab)?.label} settings — coming soon.
-                </div>
-              )}
+              {tab === 'branding'      && <SettingsBranding />}
+              {tab === 'appearance'    && <SettingsAppearance />}
+              {tab === 'recognition'   && <SettingsRecognition />}
+              {tab === 'cameras'       && <SettingsCameras />}
+              {tab === 'notifications' && <SettingsNotifications />}
+              {tab === 'privacy'       && <SettingsPrivacy />}
+              {tab === 'integrations'  && <SettingsIntegrations />}
+              {tab === 'roles'         && <SettingsRoles />}
             </div>
           </div>
         </div>

@@ -609,7 +609,7 @@ CREATE TABLE IF NOT EXISTS `sync_logs` (
 -- One row per school; upsert on change
 CREATE TABLE IF NOT EXISTS `recognition_settings` (
   `school_id`     SMALLINT UNSIGNED  NOT NULL,
-  `confidence_threshold` DECIMAL(4,3) NOT NULL DEFAULT 0.960,
+  `confidence_threshold` DECIMAL(5,2) NOT NULL DEFAULT 96.00,
   `liveness_detection`   TINYINT(1)  NOT NULL DEFAULT 1,
   `mask_tolerance`        TINYINT(1) NOT NULL DEFAULT 1,
   `multi_angle_template`  TINYINT(1) NOT NULL DEFAULT 1,
@@ -622,6 +622,26 @@ CREATE TABLE IF NOT EXISTS `recognition_settings` (
   `updated_at`    TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`school_id`),
   CONSTRAINT `fk_recog_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- SECTION 11 · SCHOOL SETTINGS (privacy + integrations)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS `school_settings` (
+  `school_id`                    SMALLINT UNSIGNED  NOT NULL,
+  `data_retention_months`        SMALLINT UNSIGNED  NOT NULL DEFAULT 24,
+  `biometric_retention_months`   SMALLINT UNSIGNED  NOT NULL DEFAULT 12,
+  `require_biometric_consent`    TINYINT(1)         NOT NULL DEFAULT 1,
+  `anonymize_on_leave`           TINYINT(1)         NOT NULL DEFAULT 0,
+  `auto_archive_inactive_months` SMALLINT UNSIGNED           DEFAULT NULL,
+  `notification_email`           VARCHAR(120)                DEFAULT NULL,
+  `webhook_url`                  VARCHAR(512)                DEFAULT NULL,
+  `sms_provider`                 VARCHAR(40)                 DEFAULT NULL,
+  `sms_api_key`                  VARCHAR(255)                DEFAULT NULL,
+  `updated_at`                   TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`school_id`),
+  CONSTRAINT `fk_schoolsettings_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET foreign_key_checks = 1;
@@ -685,6 +705,9 @@ INSERT IGNORE INTO `schools` (`id`, `name`, `subdomain`, `timezone`) VALUES
 
 -- Default recognition settings for the demo school
 INSERT IGNORE INTO `recognition_settings` (`school_id`) VALUES (1);
+
+-- Default school settings for the demo school
+INSERT IGNORE INTO `school_settings` (`school_id`) VALUES (1);
 
 -- Default admin user  (password: Admin@1234  — change immediately after first login)
 -- Hash is bcrypt cost-12 of "Admin@1234" ($2b$ == $2y$ in PHP password_verify)

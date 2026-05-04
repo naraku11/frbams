@@ -112,6 +112,13 @@ Router::add('DELETE','/admin/sections/:id',                 [AdminController::cl
 Router::add('GET',   '/admin/school-info',                  [AdminController::class, 'schoolInfo']);
 Router::add('PATCH', '/admin/school-info',                  [AdminController::class, 'updateSchoolInfo']);
 Router::add('POST',  '/admin/upload-asset',                 [AdminController::class, 'uploadAsset']);
+Router::add('GET',   '/admin/settings/privacy',             [AdminController::class, 'privacySettings']);
+Router::add('PATCH', '/admin/settings/privacy',             [AdminController::class, 'savePrivacySettings']);
+Router::add('GET',   '/admin/settings/integrations',        [AdminController::class, 'integrationSettings']);
+Router::add('PATCH', '/admin/settings/integrations',        [AdminController::class, 'saveIntegrationSettings']);
+Router::add('GET',   '/admin/staff',                        [AdminController::class, 'staff']);
+Router::add('POST',  '/admin/staff',                        [AdminController::class, 'createStaff']);
+Router::add('PATCH', '/admin/staff/:id',                    [AdminController::class, 'updateStaff']);
 
 // Health check
 Router::add('GET', '/health', fn() => json_out(['status' => 'ok', 'ts' => time()]));

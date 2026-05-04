@@ -1276,4 +1276,223 @@ class AdminController
         $base = rtrim(env('APP_URL', ''), '/');
         json_out(['url' => "{$base}/uploads/{$filename}"], 201);
     }
+
+    // ── Privacy & Retention ───────────────────────────────────────────────────
+
+    /** GET /admin/settings/privacy */
+    public static function privacySettings(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+
+        $stmt = db()->prepare(
+            'SELECT data_retention_months        AS dataRetentionMonths,
+                    biometric_retention_months   AS biometricRetentionMonths,
+                    require_biometric_consent    AS requireBiometricConsent,
+                    anonymize_on_leave           AS anonymizeOnLeave,
+                    auto_archive_inactive_months AS autoArchiveInactiveMonths
+             FROM school_settings WHERE school_id = ? LIMIT 1'
+        );
+        $stmt->execute([$sid]);
+        $row = $stmt->fetch();
+
+        json_out($row ?: [
+            'dataRetentionMonths'        => 24,
+            'biometricRetentionMonths'   => 12,
+            'requireBiometricConsent'    => true,
+            'anonymizeOnLeave'           => false,
+            'autoArchiveInactiveMonths'  => null,
+        ]);
+    }
+
+    /** PATCH /admin/settings/privacy */
+    public static function savePrivacySettings(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $body = body();
+
+        $archiveMonths = isset($body['autoArchiveInactiveMonths']) && $body['autoArchiveInactiveMonths'] !== '' && $body['autoArchiveInactiveMonths'] !== null
+            ? (int) $body['autoArchiveInactiveMonths'] : null;
+
+        db()->prepare(
+            'INSERT INTO school_settings
+               (school_id, data_retention_months, biometric_retention_months,
+                require_biometric_consent, anonymize_on_leave, auto_archive_inactive_months)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               data_retention_months        = VALUES(data_retention_months),
+               biometric_retention_months   = VALUES(biometric_retention_months),
+               require_biometric_consent    = VALUES(require_biometric_consent),
+               anonymize_on_leave           = VALUES(anonymize_on_leave),
+               auto_archive_inactive_months = VALUES(auto_archive_inactive_months)'
+        )->execute([
+            $sid,
+            (int) ($body['dataRetentionMonths']      ?? 24),
+            (int) ($body['biometricRetentionMonths']  ?? 12),
+            (int) ($body['requireBiometricConsent']   ?? 1),
+            (int) ($body['anonymizeOnLeave']          ?? 0),
+            $archiveMonths,
+        ]);
+
+        json_out(['ok' => true]);
+    }
+
+    // ── Integrations ──────────────────────────────────────────────────────────
+
+    /** GET /admin/settings/integrations */
+    public static function integrationSettings(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+
+        $stmt = db()->prepare(
+            'SELECT notification_email AS notificationEmail,
+                    webhook_url        AS webhookUrl,
+                    sms_provider       AS smsProvider,
+                    sms_api_key        AS smsApiKey
+             FROM school_settings WHERE school_id = ? LIMIT 1'
+        );
+        $stmt->execute([$sid]);
+        $row = $stmt->fetch();
+
+        json_out($row ?: ['notificationEmail' => '', 'webhookUrl' => '', 'smsProvider' => '', 'smsApiKey' => '']);
+    }
+
+    /** PATCH /admin/settings/integrations */
+    public static function saveIntegrationSettings(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $body = body();
+
+        $email   = trim((string) ($body['notificationEmail'] ?? ''));
+        $webhook = trim((string) ($body['webhookUrl']        ?? ''));
+        $smsProvider = trim((string) ($body['smsProvider']  ?? ''));
+        $smsKey  = trim((string) ($body['smsApiKey']         ?? ''));
+
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            error_out('Invalid notification email', 422);
+        }
+
+        db()->prepare(
+            'INSERT INTO school_settings
+               (school_id, notification_email, webhook_url, sms_provider, sms_api_key)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               notification_email = VALUES(notification_email),
+               webhook_url        = VALUES(webhook_url),
+               sms_provider       = VALUES(sms_provider),
+               sms_api_key        = VALUES(sms_api_key)'
+        )->execute([
+            $sid,
+            $email       ?: null,
+            $webhook     ?: null,
+            $smsProvider ?: null,
+            $smsKey      ?: null,
+        ]);
+
+        json_out(['ok' => true]);
+    }
+
+    // ── Staff / Roles ─────────────────────────────────────────────────────────
+
+    /** GET /admin/staff */
+    public static function staff(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+
+        $stmt = db()->prepare(
+            "SELECT id, employee_code AS employeeCode,
+                    first_name AS firstName, last_name AS lastName,
+                    email, role, department, is_active AS isActive,
+                    DATE_FORMAT(last_login_at, '%Y-%m-%d %H:%i') AS lastLoginAt
+             FROM users
+             WHERE school_id = ?
+             ORDER BY FIELD(role,'admin','vice_principal','teacher','staff'), last_name, first_name"
+        );
+        $stmt->execute([$sid]);
+        json_out($stmt->fetchAll());
+    }
+
+    /** POST /admin/staff */
+    public static function createStaff(): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $body = body();
+
+        $firstName    = trim((string) required_field($body, 'firstName'));
+        $lastName     = trim((string) required_field($body, 'lastName'));
+        $email        = trim((string) required_field($body, 'email'));
+        $role         = trim((string) ($body['role']         ?? 'teacher'));
+        $employeeCode = trim((string) ($body['employeeCode'] ?? '')) ?: null;
+        $department   = trim((string) ($body['department']   ?? '')) ?: null;
+
+        $validRoles = ['admin', 'vice_principal', 'teacher', 'staff'];
+        if (!in_array($role, $validRoles, true)) {
+            error_out('Invalid role', 422);
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            error_out('Invalid email address', 422);
+        }
+
+        $dupStmt = db()->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+        $dupStmt->execute([$email]);
+        if ($dupStmt->fetch()) {
+            error_out('Email already registered', 409);
+        }
+
+        $tempPassword = bin2hex(random_bytes(6));
+        $hash         = password_hash($tempPassword, PASSWORD_BCRYPT);
+
+        db()->prepare(
+            'INSERT INTO users
+               (school_id, employee_code, first_name, last_name, email,
+                password_hash, role, department, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)'
+        )->execute([$sid, $employeeCode, $firstName, $lastName, $email, $hash, $role, $department]);
+
+        json_out([
+            'name'         => "{$firstName} {$lastName}",
+            'email'        => $email,
+            'role'         => $role,
+            'tempPassword' => $tempPassword,
+        ], 201);
+    }
+
+    /** PATCH /admin/staff/:id */
+    public static function updateStaff(string $staffId): void
+    {
+        $user = require_admin();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $id   = (int) $staffId;
+        $body = body();
+
+        $check = db()->prepare('SELECT id FROM users WHERE id = ? AND school_id = ? LIMIT 1');
+        $check->execute([$id, $sid]);
+        if (!$check->fetch()) {
+            error_out('Staff member not found', 404);
+        }
+
+        $map = [
+            'role'       => ['col' => 'role',        'type' => 'str'],
+            'isActive'   => ['col' => 'is_active',   'type' => 'int'],
+            'department' => ['col' => 'department',  'type' => 'str'],
+        ];
+
+        $sets = []; $params = [];
+        foreach ($map as $js => $def) {
+            if (!array_key_exists($js, $body)) continue;
+            $val      = $def['type'] === 'int' ? (int) $body[$js] : (trim((string) $body[$js]) ?: null);
+            $sets[]   = "`{$def['col']}` = ?";
+            $params[] = $val;
+        }
+        if (empty($sets)) error_out('Nothing to update');
+        $params[] = $id;
+
+        db()->prepare("UPDATE users SET " . implode(', ', $sets) . " WHERE id = ?")->execute($params);
+        json_out(['ok' => true]);
+    }
 }

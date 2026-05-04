@@ -76,6 +76,13 @@ export const api = {
   deleteSection:           (id)           => request('DELETE', `/admin/sections/${id}`),
   schoolInfo:              ()             => request('GET',    '/admin/school-info'),
   updateSchoolInfo:        (body)         => request('PATCH',  '/admin/school-info', body),
+  privacySettings:         ()             => request('GET',    '/admin/settings/privacy'),
+  savePrivacySettings:     (body)         => request('PATCH',  '/admin/settings/privacy', body),
+  integrationSettings:     ()             => request('GET',    '/admin/settings/integrations'),
+  saveIntegrationSettings: (body)         => request('PATCH',  '/admin/settings/integrations', body),
+  staff:                   ()             => request('GET',    '/admin/staff'),
+  createStaff:             (body)         => request('POST',   '/admin/staff', body),
+  updateStaff:             (id, body)     => request('PATCH',  `/admin/staff/${id}`, body),
   uploadAsset: (file) => {
     const form = new FormData()
     form.append('file', file)
