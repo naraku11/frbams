@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { api } from './api'
 import { I } from './icons'
 import { Sidebar, TopBar } from './shell'
+import { EnrollDialog, ImportDialog } from './admin-misc'
 
 function hue(code) { return (parseInt((code ?? '').replace(/\D/g, '')) * 37) % 360 }
 
@@ -154,7 +155,6 @@ function StudentDrawer({ studentDbId, onClose }) {
 }
 
 export function StudentList() {
-  const navigate = useNavigate()
   const [urlParams]   = useSearchParams()
 
   const [search,       setSearch]       = useState(() => urlParams.get('q') ?? '')
@@ -167,6 +167,9 @@ export function StudentList() {
   const [loading,      setLoading]      = useState(false)
   const [selected,     setSelected]     = useState(new Set())
   const [drawerDbId,   setDrawerDbId]   = useState(null)
+  const [enrollOpen,   setEnrollOpen]   = useState(false)
+  const [importOpen,   setImportOpen]   = useState(false)
+  const [refreshKey,   setRefreshKey]   = useState(0)
 
   useEffect(() => {
     api.grades().then(setGrades).catch(() => {})
@@ -190,7 +193,7 @@ export function StudentList() {
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [search, gradeFilter, page])
+  }, [search, gradeFilter, page, refreshKey])
 
   const rows = students.map(s => ({
     dbId:  s.id,
@@ -241,7 +244,8 @@ export function StudentList() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="fm-btn" onClick={exportCSV}><I.Export size={14} /> Export</button>
-              <button className="fm-btn primary" onClick={() => navigate('/enroll')}><I.Plus size={14} /> Enroll student</button>
+              <button className="fm-btn" onClick={() => setImportOpen(true)}><I.Upload size={14} /> Import CSV</button>
+              <button className="fm-btn primary" onClick={() => setEnrollOpen(true)}><I.Plus size={14} /> Enroll student</button>
             </div>
           </div>
 
@@ -363,6 +367,19 @@ export function StudentList() {
       </div>
 
       <StudentDrawer studentDbId={drawerDbId} onClose={() => setDrawerDbId(null)} />
+
+      <EnrollDialog
+        open={enrollOpen}
+        grades={grades}
+        onClose={() => setEnrollOpen(false)}
+        onEnrolled={() => setRefreshKey(k => k + 1)}
+      />
+      <ImportDialog
+        open={importOpen}
+        grades={grades}
+        onClose={() => setImportOpen(false)}
+        onImported={() => setRefreshKey(k => k + 1)}
+      />
     </div>
   )
 }

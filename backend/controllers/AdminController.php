@@ -481,6 +481,102 @@ class AdminController
         ], 201);
     }
 
+    /** POST /admin/students/bulk — enroll up to 200 students from a CSV import */
+    public static function bulkEnrollStudents(): void
+    {
+        $user     = require_admin();
+        $schoolId = (int) ($user['school_id'] ?? 1);
+        $body     = body();
+
+        $students = $body['students'] ?? [];
+        if (!is_array($students) || count($students) === 0) {
+            error_out('students array is required', 422);
+        }
+        if (count($students) > 200) {
+            error_out('Maximum 200 students per import', 422);
+        }
+
+        // Pre-load all active grades for this school into a label→id map
+        $gStmt = db()->prepare(
+            'SELECT id, label FROM grades WHERE is_active = 1 AND school_id = ? ORDER BY label'
+        );
+        $gStmt->execute([$schoolId]);
+        $gradeMap = [];
+        foreach ($gStmt->fetchAll() as $g) {
+            $gradeMap[(string) $g['label']] = (int) $g['id'];
+        }
+
+        $dupCheck = db()->prepare(
+            'SELECT id FROM students WHERE school_id = ? AND student_code = ? LIMIT 1'
+        );
+
+        $insert = db()->prepare(
+            'INSERT INTO students
+               (school_id, student_code, first_name, last_name, email,
+                grade_id, password_hash, is_active, enrolled_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())'
+        );
+
+        $results  = [];
+        $enrolled = 0;
+        $failed   = 0;
+
+        foreach ($students as $i => $row) {
+            $firstName   = trim((string) ($row['firstName']   ?? ''));
+            $lastName    = trim((string) ($row['lastName']    ?? ''));
+            $studentCode = trim((string) ($row['studentCode'] ?? ''));
+            $gradeLabel  = trim((string) ($row['gradeLabel']  ?? ''));
+            $email       = trim((string) ($row['email']       ?? ''));
+
+            $rowId = $studentCode ?: "row_" . ($i + 1);
+
+            if (!$firstName || !$lastName || !$studentCode || !$gradeLabel) {
+                $results[] = ['studentCode' => $rowId, 'ok' => false, 'error' => 'Missing required fields'];
+                $failed++;
+                continue;
+            }
+
+            if (!isset($gradeMap[$gradeLabel])) {
+                $results[] = ['studentCode' => $studentCode, 'ok' => false, 'error' => "Grade '{$gradeLabel}' not found"];
+                $failed++;
+                continue;
+            }
+
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $results[] = ['studentCode' => $studentCode, 'ok' => false, 'error' => 'Invalid email address'];
+                $failed++;
+                continue;
+            }
+
+            $dupCheck->execute([$schoolId, $studentCode]);
+            if ($dupCheck->fetch()) {
+                $results[] = ['studentCode' => $studentCode, 'ok' => false, 'error' => 'Student code already exists'];
+                $failed++;
+                continue;
+            }
+
+            $tempPassword = bin2hex(random_bytes(6));
+            $hash         = password_hash($tempPassword, PASSWORD_BCRYPT);
+
+            $insert->execute([
+                $schoolId, $studentCode, $firstName, $lastName,
+                $email !== '' ? $email : null,
+                $gradeMap[$gradeLabel], $hash,
+            ]);
+
+            $results[] = [
+                'studentCode'  => $studentCode,
+                'name'         => "{$firstName} {$lastName}",
+                'grade'        => $gradeLabel,
+                'tempPassword' => $tempPassword,
+                'ok'           => true,
+            ];
+            $enrolled++;
+        }
+
+        json_out(['enrolled' => $enrolled, 'failed' => $failed, 'results' => $results]);
+    }
+
     /** GET /admin/settings/recognition */
     public static function recognitionSettings(): void
     {

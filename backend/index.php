@@ -76,6 +76,7 @@ Router::add('GET',  '/admin/dashboard',                     [AdminController::cl
 Router::add('GET',  '/admin/students',                      [AdminController::class, 'students']);
 Router::add('GET',  '/admin/students/:id',                  [AdminController::class, 'studentDetail']);
 Router::add('POST', '/admin/students',                      [AdminController::class, 'enrollStudent']);
+Router::add('POST', '/admin/students/bulk',                 [AdminController::class, 'bulkEnrollStudents']);
 Router::add('GET',  '/admin/attendance',                    [AdminController::class, 'attendance']);
 Router::add('GET',  '/admin/leave-requests',                [AdminController::class, 'leaveRequests']);
 Router::add('POST', '/admin/leave-requests/:id/approve',    [AdminController::class, 'approveLeave']);

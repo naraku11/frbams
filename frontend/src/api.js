@@ -49,6 +49,7 @@ export const api = {
   cameras:                 ()             => request('GET',   '/admin/cameras'),
   grades:                  ()             => request('GET',   '/admin/grades'),
   enrollStudent:           (body)         => request('POST',  '/admin/students', body),
+  bulkEnrollStudents:      (body)         => request('POST',  '/admin/students/bulk', body),
   recognitionSettings:     ()             => request('GET',   '/admin/settings/recognition'),
   saveRecognitionSettings: (body)         => request('PATCH', '/admin/settings/recognition', body),
   badgeCounts:             ()             => request('GET',   '/admin/badge-counts'),

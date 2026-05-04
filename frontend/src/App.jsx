@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './login'
 import { Dashboard } from './admin-dashboard'
 import { AttendanceLog } from './admin-log'
-import { Enrollment, Reports, Settings, LeaveRequests } from './admin-misc'
+import { Reports, Settings, LeaveRequests } from './admin-misc'
 import { NotificationsScreen } from './notifications'
 import { Subjects, OfflineSync, CourseManager } from './extras'
 import { StudentList } from './students'
@@ -26,7 +26,7 @@ export default function App() {
         <Route path="/dashboard" element={<Guard><Dashboard /></Guard>} />
         <Route path="/log"       element={<Guard><AttendanceLog /></Guard>} />
         <Route path="/students"  element={<Guard><StudentList /></Guard>} />
-        <Route path="/enroll"    element={<Guard><Enrollment /></Guard>} />
+        <Route path="/enroll"    element={<Navigate to="/students" replace />} />
         <Route path="/reports"   element={<Guard><Reports /></Guard>} />
         <Route path="/leave"     element={<Guard><LeaveRequests /></Guard>} />
         <Route path="/alerts"    element={<Guard><NotificationsScreen /></Guard>} />

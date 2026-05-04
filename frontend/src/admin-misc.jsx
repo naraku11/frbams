@@ -6,15 +6,62 @@ import { Sidebar, TopBar } from './shell'
 import { THEMES, getSavedTheme, saveTheme } from './theme'
 
 
-function Enrollment() {
-  const [grades,  setGrades]  = React.useState([])
-  const [form,    setForm]    = React.useState({ firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' })
-  const [saving,  setSaving]  = React.useState(false)
-  const [done,    setDone]    = React.useState(null)
-  const [error,   setError]   = React.useState('')
-  const [copied,  setCopied]  = React.useState(false)
+// ── CSV helpers ──────────────────────────────────────────────────────────────
 
-  React.useEffect(() => { api.grades().then(setGrades).catch(() => {}) }, [])
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim())
+  if (!lines.length) return []
+  const splitLine = (line) => {
+    const result = []; let cur = ''; let inQ = false
+    for (const ch of line) {
+      if (ch === '"') inQ = !inQ
+      else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+    result.push(cur.trim()); return result
+  }
+  const raw0 = splitLine(lines[0]).map(h => h.toLowerCase().replace(/[\s_-]/g, ''))
+  const FIELD_MAP = {
+    firstname: 'firstName', lastname: 'lastName',
+    studentcode: 'studentCode', studentid: 'studentCode', id: 'studentCode',
+    gradelabel: 'gradeLabel', grade: 'gradeLabel', section: 'gradeLabel',
+    email: 'email', guardianemail: 'email',
+  }
+  const isHeader = raw0.some(h => FIELD_MAP[h])
+  const dataLines = isHeader ? lines.slice(1) : lines
+  const headers = isHeader ? raw0 : null
+  return dataLines.map(line => {
+    const cols = splitLine(line)
+    if (headers) {
+      const obj = { firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' }
+      headers.forEach((h, i) => { const f = FIELD_MAP[h]; if (f) obj[f] = cols[i] ?? '' })
+      return obj
+    }
+    return { firstName: cols[0] ?? '', lastName: cols[1] ?? '', studentCode: cols[2] ?? '', gradeLabel: cols[3] ?? '', email: cols[4] ?? '' }
+  }).filter(r => r.firstName || r.lastName || r.studentCode)
+}
+
+function rowError(r) {
+  if (!r.firstName || !r.lastName || !r.studentCode || !r.gradeLabel) return 'Missing required field'
+  if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) return 'Invalid email'
+  return null
+}
+
+// ── EnrollDialog ─────────────────────────────────────────────────────────────
+
+function EnrollDialog({ open, grades, onClose, onEnrolled }) {
+  const EMPTY = { firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' }
+  const [form,   setForm]   = React.useState(EMPTY)
+  const [saving, setSaving] = React.useState(false)
+  const [done,   setDone]   = React.useState(null)
+  const [error,  setError]  = React.useState('')
+  const [copied, setCopied] = React.useState(false)
+
+  React.useEffect(() => {
+    if (open) { setForm(EMPTY); setDone(null); setError(''); setCopied(false) }
+  }, [open])
+
+  if (!open) return null
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -25,99 +72,341 @@ function Enrollment() {
     setSaving(true); setError('')
     try {
       const res = await api.enrollStudent(form)
-      setDone(res)
-      setForm({ firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' })
+      setDone(res); setForm(EMPTY); onEnrolled?.()
     } catch (e) { setError(e.message) }
     finally { setSaving(false) }
   }
 
   return (
-    <div className="fm-screen" data-screen-label="Enrollment">
-      <Sidebar />
-      <div className="fm-main">
-        <TopBar />
-        <div className="fm-content">
-          <div style={{marginBottom:24}}>
-            <div className="fm-eyebrow" style={{marginBottom:8}}>Admin · Enrollment</div>
-            <h1 className="fm-h1">Enroll a new student</h1>
-            <div className="fm-muted" style={{marginTop:6}}>
-              Fill in the student details below. A secure one-time password will be generated — share it with the student so they can log in.
-            </div>
+    <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.35)', backdropFilter:'blur(2px)' }} />
+      <div style={{
+        position:'relative', zIndex:1, background:'var(--bg)', borderRadius:14,
+        width:520, maxWidth:'95vw', maxHeight:'90vh', display:'flex', flexDirection:'column',
+        boxShadow:'0 8px 60px rgba(0,0,0,0.25)', border:'1px solid var(--line)',
+      }}>
+        <div style={{ padding:'18px 20px', borderBottom:'1px solid var(--line-2)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:11.5, fontWeight:600, color:'var(--fg-3)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:2 }}>Enrollment</div>
+            <div style={{ fontSize:16, fontWeight:700 }}>Enroll a new student</div>
           </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--fg-3)', padding:4, display:'grid', placeItems:'center', borderRadius:6 }}>
+            <I.X size={15} />
+          </button>
+        </div>
 
-          <div style={{maxWidth:520}}>
-            {done && (
-              <div style={{
-                marginBottom:16, padding:'14px 18px', borderRadius:10,
-                background:'var(--accent-soft)', border:'1px solid var(--accent)',
-                fontSize:13, lineHeight:1.5,
-              }}>
-                <div><b style={{fontWeight:600}}>Enrolled:</b> {done.name} · <span className="mono">{done.studentCode}</span> · {done.grade}</div>
-                {done.tempPassword && (
-                  <div style={{marginTop:8, padding:'8px 12px', background:'var(--card)', borderRadius:7, display:'flex', alignItems:'center', gap:10}}>
-                    <span className="fm-muted" style={{fontSize:12}}>One-time password:</span>
-                    <span className="mono" style={{fontWeight:700, fontSize:14, flex:1}}>{done.tempPassword}</span>
-                    <button className="fm-btn" style={{fontSize:11}} onClick={() => {
-                      navigator.clipboard?.writeText(done.tempPassword)
-                      setCopied(true); setTimeout(() => setCopied(false), 2000)
-                    }}>{copied ? 'Copied!' : 'Copy'}</button>
-                  </div>
-                )}
-                <div style={{marginTop:10, fontSize:11.5, color:'var(--fg-3)'}}>
-                  Share this password with the student. It will not be shown again.
+        <div style={{ flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:14 }}>
+          {done && (
+            <div style={{ padding:'14px 18px', borderRadius:10, background:'var(--accent-soft)', border:'1px solid var(--accent)', fontSize:13, lineHeight:1.5 }}>
+              <div><b style={{ fontWeight:600 }}>Enrolled:</b> {done.name} · <span className="mono">{done.studentCode}</span> · {done.grade}</div>
+              {done.tempPassword && (
+                <div style={{ marginTop:8, padding:'8px 12px', background:'var(--card)', borderRadius:7, display:'flex', alignItems:'center', gap:10 }}>
+                  <span className="fm-muted" style={{ fontSize:12 }}>One-time password:</span>
+                  <span className="mono" style={{ fontWeight:700, fontSize:14, flex:1 }}>{done.tempPassword}</span>
+                  <button className="fm-btn" style={{ fontSize:11 }} onClick={() => {
+                    navigator.clipboard?.writeText(done.tempPassword)
+                    setCopied(true); setTimeout(() => setCopied(false), 2000)
+                  }}>{copied ? 'Copied!' : 'Copy'}</button>
                 </div>
-                <button className="fm-btn" style={{marginTop:10, fontSize:11}} onClick={() => { setDone(null); setCopied(false) }}>Enroll another</button>
-              </div>
-            )}
+              )}
+              <div style={{ marginTop:10, fontSize:11.5, color:'var(--fg-3)' }}>Share this password with the student. It will not be shown again.</div>
+              <button className="fm-btn" style={{ marginTop:10, fontSize:11 }} onClick={() => { setDone(null); setCopied(false) }}>Enroll another</button>
+            </div>
+          )}
 
-            <div className="fm-card">
-              <h3 className="fm-h3" style={{marginBottom:14}}>Student details</h3>
-              <div style={{display:"grid", gap:12}}>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>First name <span style={{color:"var(--red)"}}>*</span></div>
-                    <input className="fm-input" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="e.g. Juan" />
-                  </div>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Last name <span style={{color:"var(--red)"}}>*</span></div>
-                    <input className="fm-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="e.g. Dela Cruz" />
-                  </div>
-                </div>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Student ID <span style={{color:"var(--red)"}}>*</span></div>
-                    <input className="fm-input mono" value={form.studentCode} onChange={e => set('studentCode', e.target.value)} placeholder="e.g. S2025-001" />
-                  </div>
-                  <div>
-                    <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Grade <span style={{color:"var(--red)"}}>*</span></div>
-                    <select className="fm-input" value={form.gradeLabel} onChange={e => set('gradeLabel', e.target.value)}>
-                      <option value="">Select grade…</option>
-                      {grades.map(g => <option key={g.id} value={g.label}>{g.label}</option>)}
-                    </select>
-                  </div>
+          <div className="fm-card">
+            <h3 className="fm-h3" style={{ marginBottom:14 }}>Student details</h3>
+            <div style={{ display:'grid', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div>
+                  <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>First name <span style={{ color:'var(--red)' }}>*</span></div>
+                  <input className="fm-input" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="e.g. Juan" />
                 </div>
                 <div>
-                  <div style={{fontSize:11.5, color:"var(--fg-3)", marginBottom:5}}>Guardian email <span className="fm-muted">(optional)</span></div>
-                  <input className="fm-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="guardian@example.com" />
+                  <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Last name <span style={{ color:'var(--red)' }}>*</span></div>
+                  <input className="fm-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="e.g. Dela Cruz" />
                 </div>
               </div>
-            </div>
-
-            {error && (
-              <div style={{marginTop:10, padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5}}>
-                {error}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div>
+                  <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Student ID <span style={{ color:'var(--red)' }}>*</span></div>
+                  <input className="fm-input mono" value={form.studentCode} onChange={e => set('studentCode', e.target.value)} placeholder="e.g. S2025-001" />
+                </div>
+                <div>
+                  <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Grade <span style={{ color:'var(--red)' }}>*</span></div>
+                  <select className="fm-input" value={form.gradeLabel} onChange={e => set('gradeLabel', e.target.value)}>
+                    <option value="">Select grade…</option>
+                    {grades.map(g => <option key={g.id} value={g.label}>{g.label}</option>)}
+                  </select>
+                </div>
               </div>
-            )}
-
-            <div style={{display:"flex", gap:8, justifyContent:"flex-end", marginTop:14}}>
-              <button className="fm-btn" onClick={() => { setForm({ firstName:'', lastName:'', studentCode:'', gradeLabel:'', email:'' }); setError('') }}>
-                Clear
-              </button>
-              <button className="fm-btn primary" disabled={saving} onClick={submit}>
-                {saving ? 'Enrolling…' : <><I.Check size={13}/> Enroll student</>}
-              </button>
+              <div>
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Guardian email <span className="fm-muted">(optional)</span></div>
+                <input className="fm-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="guardian@example.com" />
+              </div>
             </div>
           </div>
+
+          {error && (
+            <div style={{ padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5 }}>
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding:'14px 20px', borderTop:'1px solid var(--line-2)', display:'flex', justifyContent:'flex-end', gap:8, flexShrink:0 }}>
+          <button className="fm-btn" onClick={onClose}>Cancel</button>
+          <button className="fm-btn primary" disabled={saving} onClick={submit}>
+            {saving ? 'Enrolling…' : <><I.Check size={13} /> Enroll student</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── ImportDialog ──────────────────────────────────────────────────────────────
+
+function ImportDialog({ open, grades, onClose, onImported }) {
+  const [step,       setStep]       = React.useState(1)
+  const [rows,       setRows]       = React.useState([])
+  const [importing,  setImporting]  = React.useState(false)
+  const [results,    setResults]    = React.useState(null)
+  const [copiedIdx,  setCopiedIdx]  = React.useState(null)
+  const [dragging,   setDragging]   = React.useState(false)
+  const [importErr,  setImportErr]  = React.useState('')
+  const fileRef = React.useRef()
+
+  React.useEffect(() => {
+    if (open) { setStep(1); setRows([]); setResults(null); setCopiedIdx(null); setImportErr('') }
+  }, [open])
+
+  if (!open) return null
+
+  const handleFile = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => { setRows(parseCSV(e.target.result)); setStep(2) }
+    reader.readAsText(file)
+  }
+
+  const removeRow = (i) => setRows(prev => prev.filter((_, idx) => idx !== i))
+
+  const doImport = async () => {
+    setImporting(true); setImportErr('')
+    try {
+      const res = await api.bulkEnrollStudents({ students: rows })
+      setResults(res); setStep(3)
+      if (res.enrolled > 0) onImported?.()
+    } catch (e) { setImportErr(e.message) }
+    finally { setImporting(false) }
+  }
+
+  const downloadTemplate = () => {
+    const csv = 'firstName,lastName,studentCode,gradeLabel,email\nJuan,Dela Cruz,S2025-001,10A,guardian@example.com\nMaria,Santos,S2025-002,11B,'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'frbams-import-template.csv'; a.click()
+  }
+
+  const invalidCount = rows.filter(r => rowError(r)).length
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div onClick={step === 3 ? null : onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.35)', backdropFilter:'blur(2px)' }} />
+      <div style={{
+        position:'relative', zIndex:1, background:'var(--bg)', borderRadius:14,
+        width: step === 1 ? 520 : 720, maxWidth:'96vw', maxHeight:'90vh',
+        display:'flex', flexDirection:'column',
+        boxShadow:'0 8px 60px rgba(0,0,0,0.25)', border:'1px solid var(--line)',
+      }}>
+        {/* Header */}
+        <div style={{ padding:'18px 20px', borderBottom:'1px solid var(--line-2)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:11.5, fontWeight:600, color:'var(--fg-3)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:2 }}>
+              {step < 3 ? `Step ${step} of 2` : 'Complete'}
+            </div>
+            <div style={{ fontSize:16, fontWeight:700 }}>
+              {step === 1 ? 'Import students from CSV' : step === 2 ? `Review ${rows.length} student${rows.length !== 1 ? 's' : ''}` : 'Import complete'}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--fg-3)', padding:4, display:'grid', placeItems:'center', borderRadius:6 }}>
+            <I.X size={15} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:14 }}>
+
+          {/* ── Step 1: file picker ── */}
+          {step === 1 && (
+            <>
+              <div className="fm-muted" style={{ fontSize:13, lineHeight:1.6 }}>
+                Upload a CSV file to enroll multiple students at once. Each student gets a unique one-time password.
+              </div>
+              <div style={{ padding:'12px 16px', background:'var(--card)', borderRadius:8, border:'1px solid var(--line)', fontSize:12.5 }}>
+                <div style={{ fontWeight:600, marginBottom:8 }}>Required columns</div>
+                <div className="mono" style={{ fontSize:11.5, color:'var(--fg-2)', lineHeight:2 }}>
+                  firstName · lastName · studentCode · gradeLabel<br />
+                  <span style={{ color:'var(--fg-3)' }}>Optional: email (guardian)</span>
+                </div>
+              </div>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
+                onClick={() => fileRef.current?.click()}
+                style={{
+                  border:`2px dashed ${dragging ? 'var(--accent)' : 'var(--line)'}`,
+                  borderRadius:10, padding:'40px 20px', textAlign:'center', cursor:'pointer',
+                  background: dragging ? 'var(--accent-soft)' : 'var(--card)',
+                  transition:'border-color 0.15s, background 0.15s',
+                }}
+              >
+                <I.Upload size={28} style={{ margin:'0 auto 10px', color:'var(--fg-3)', display:'block' }} />
+                <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>Drop CSV file here</div>
+                <div className="fm-muted" style={{ fontSize:12 }}>or click to browse</div>
+              </div>
+              <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }}
+                onChange={e => { if (e.target.files[0]) { handleFile(e.target.files[0]); e.target.value = '' } }} />
+              <button className="fm-btn" style={{ alignSelf:'flex-start', fontSize:12 }} onClick={downloadTemplate}>
+                <I.Export size={13} /> Download template
+              </button>
+            </>
+          )}
+
+          {/* ── Step 2: preview table ── */}
+          {step === 2 && (
+            <>
+              {invalidCount > 0 && (
+                <div style={{ padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--amber) 14%, var(--card))', color:'var(--amber)', fontSize:12.5 }}>
+                  {invalidCount} row{invalidCount !== 1 ? 's have' : ' has'} missing required fields and will be skipped. Remove them or they will be sent to the server for an error response.
+                </div>
+              )}
+              {importErr && (
+                <div style={{ padding:'10px 14px', borderRadius:8, background:'color-mix(in oklch, var(--red) 12%, var(--card))', color:'var(--red)', fontSize:12.5 }}>
+                  {importErr}
+                </div>
+              )}
+              <div className="fm-card" style={{ padding:0, overflow:'hidden' }}>
+                <table className="fm-table" style={{ fontSize:12.5 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ paddingLeft:16, width:36 }}>#</th>
+                      <th>First name</th>
+                      <th>Last name</th>
+                      <th>Student ID</th>
+                      <th>Grade</th>
+                      <th>Email</th>
+                      <th style={{ width:34 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => {
+                      const err = rowError(r)
+                      return (
+                        <tr key={i} style={{ background: err ? 'color-mix(in oklch, var(--red) 5%, var(--card))' : undefined }}>
+                          <td style={{ paddingLeft:16, color:'var(--fg-3)' }} className="mono">{i + 1}</td>
+                          <td>{r.firstName || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
+                          <td>{r.lastName  || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
+                          <td className="mono">{r.studentCode || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
+                          <td className="mono">{r.gradeLabel  || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
+                          <td className="mono" style={{ color:'var(--fg-3)' }}>{r.email || '—'}</td>
+                          <td>
+                            <button
+                              onClick={() => removeRow(i)}
+                              title="Remove row"
+                              style={{ background:'none', border:'none', cursor:'pointer', color:'var(--fg-3)', padding:'2px 6px', borderRadius:4, fontSize:15, lineHeight:1 }}
+                            >×</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* ── Step 3: results ── */}
+          {step === 3 && results && (
+            <>
+              <div style={{ display:'flex', gap:12 }}>
+                <div style={{ flex:1, padding:'16px 20px', borderRadius:10, background:'var(--accent-soft)', border:'1px solid var(--accent)', textAlign:'center' }}>
+                  <div className="mono" style={{ fontSize:30, fontWeight:700, color:'var(--accent)' }}>{results.enrolled}</div>
+                  <div className="fm-muted" style={{ fontSize:12, marginTop:4 }}>enrolled</div>
+                </div>
+                {results.failed > 0 && (
+                  <div style={{ flex:1, padding:'16px 20px', borderRadius:10, background:'color-mix(in oklch, var(--red) 12%, var(--card))', border:'1px solid color-mix(in oklch, var(--red) 40%, transparent)', textAlign:'center' }}>
+                    <div className="mono" style={{ fontSize:30, fontWeight:700, color:'var(--red)' }}>{results.failed}</div>
+                    <div className="fm-muted" style={{ fontSize:12, marginTop:4 }}>failed</div>
+                  </div>
+                )}
+              </div>
+              {results.enrolled > 0 && (
+                <div className="fm-muted" style={{ fontSize:12 }}>Copy and save the passwords below — they will not be shown again.</div>
+              )}
+              <div className="fm-card" style={{ padding:0, overflow:'hidden' }}>
+                <table className="fm-table" style={{ fontSize:12.5 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ paddingLeft:16 }}>Student</th>
+                      <th>Grade</th>
+                      <th>One-time password</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.results.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ paddingLeft:16 }}>
+                          <div style={{ fontWeight:500 }}>{r.name || r.studentCode}</div>
+                          <div className="mono fm-muted" style={{ fontSize:11 }}>{r.studentCode}</div>
+                        </td>
+                        <td className="mono">{r.grade || '—'}</td>
+                        <td>
+                          {r.ok ? (
+                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <span className="mono" style={{ fontWeight:600 }}>{r.tempPassword}</span>
+                              <button className="fm-btn" style={{ fontSize:10, padding:'2px 8px' }} onClick={() => {
+                                navigator.clipboard?.writeText(r.tempPassword)
+                                setCopiedIdx(i); setTimeout(() => setCopiedIdx(null), 2000)
+                              }}>{copiedIdx === i ? 'Copied!' : 'Copy'}</button>
+                            </div>
+                          ) : <span className="fm-muted">—</span>}
+                        </td>
+                        <td>
+                          {r.ok
+                            ? <span className="fm-pill ok" style={{ fontSize:10 }}>Enrolled</span>
+                            : <span style={{ color:'var(--red)', fontSize:11 }}>{r.error}</span>
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:'14px 20px', borderTop:'1px solid var(--line-2)', display:'flex', justifyContent: step === 2 ? 'space-between' : 'flex-end', gap:8, flexShrink:0 }}>
+          {step === 1 && <button className="fm-btn" onClick={onClose}>Cancel</button>}
+          {step === 2 && (
+            <>
+              <button className="fm-btn" onClick={() => setStep(1)}>← Back</button>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                {invalidCount > 0 && (
+                  <span className="fm-muted" style={{ fontSize:12 }}>{invalidCount} invalid will be skipped</span>
+                )}
+                <button className="fm-btn" onClick={onClose}>Cancel</button>
+                <button className="fm-btn primary" disabled={importing || rows.length === 0} onClick={doImport}>
+                  {importing ? 'Importing…' : <><I.Check size={13} /> Import {rows.length} student{rows.length !== 1 ? 's' : ''}</>}
+                </button>
+              </div>
+            </>
+          )}
+          {step === 3 && <button className="fm-btn primary" onClick={onClose}>Done</button>}
         </div>
       </div>
     </div>
@@ -915,4 +1204,4 @@ function LeaveRequests() {
 }
 
 
-export { Enrollment, Reports, Settings, LeaveRequests }
+export { EnrollDialog, ImportDialog, Reports, Settings, LeaveRequests }
