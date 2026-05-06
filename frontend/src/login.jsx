@@ -2,6 +2,21 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from './api'
 
+const FEATURES = [
+  {
+    title: 'Real-time face recognition',
+    desc: 'Contactless biometric attendance captured at entry points.',
+  },
+  {
+    title: 'Live attendance analytics',
+    desc: 'Track present, late, and absent counts as they happen.',
+  },
+  {
+    title: 'Automated reporting',
+    desc: 'Export daily logs and per-grade summaries in one click.',
+  },
+]
+
 export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -32,84 +47,127 @@ export default function Login() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg)', fontFamily: 'var(--body)',
-    }}>
-      <div style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
-        {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40, justifyContent: 'center' }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 11, background: 'var(--fg)',
-            display: 'grid', placeItems: 'center',
-            fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 800, color: 'var(--bg)',
-            letterSpacing: '-0.02em',
-          }}>UV</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1.1 }}>FRBAMS</span>
-            <span style={{ fontSize: 10.5, color: 'var(--fg-3)', letterSpacing: '0.01em', lineHeight: 1 }}>University of the Visayas</span>
-          </div>
-        </div>
-
-        {/* Card */}
+    <div className="fm-login-wrap">
+      {/* ── Left hero panel ── */}
+      <div className="fm-login-hero">
+        {/* Extra geometric decoration rings */}
         <div style={{
-          background: 'var(--card)', border: '1px solid var(--line)',
-          borderRadius: 'var(--r-xl)', padding: 32,
-        }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', margin: '0 0 4px', color: 'var(--fg)' }}>
-            Sign in
-          </h1>
-          <p style={{ color: 'var(--fg-3)', fontSize: 13.5, margin: '0 0 28px' }}>
-            University of the Visayas · Admin Portal
+          position: 'absolute', top: 120, right: -120,
+          width: 280, height: 280,
+          border: '1px solid rgba(201,162,39,0.08)',
+          borderRadius: '50%',
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: -60, right: 40,
+          width: 160, height: 160,
+          border: '1px solid rgba(255,255,255,0.05)',
+          borderRadius: '50%',
+          pointerEvents: 'none',
+        }} />
+        {/* Diagonal accent line */}
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0,
+          width: 1,
+          background: 'linear-gradient(180deg, transparent 0%, rgba(201,162,39,0.25) 30%, rgba(201,162,39,0.12) 70%, transparent 100%)',
+          pointerEvents: 'none',
+        }} />
+
+        <div className="fm-login-hero-inner">
+          {/* Brand mark */}
+          <div className="fm-login-hero-mark">UV</div>
+
+          {/* Headline */}
+          <h2>Face Recognition<br />Attendance System</h2>
+          <p>
+            University of the Visayas · Admin Portal. Secure access for
+            administrators and academic staff.
           </p>
 
-          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 6 }}>Email</label>
-              <input
-                className="fm-input"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                style={{ width: '100%' }}
-                autoComplete="email"
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 6 }}>Password</label>
-              <input
-                className="fm-input"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                style={{ width: '100%' }}
-                autoComplete="current-password"
-                autoFocus
-              />
-            </div>
+          <div className="fm-login-hero-rule" />
 
-            {error && (
-              <div style={{
-                fontSize: 12.5, color: 'oklch(0.4 0.12 25)', background: 'var(--red-soft)',
-                padding: '9px 14px', borderRadius: 8,
-              }}>{error}</div>
-            )}
+          {/* Feature bullets */}
+          <div className="fm-login-hero-features">
+            {FEATURES.map((f, i) => (
+              <div className="fm-login-hero-feat" key={i}>
+                <div className="fm-login-hero-feat-dot" />
+                <div className="fm-login-hero-feat-text">
+                  <strong>{f.title}</strong>
+                  {f.desc}
+                </div>
+              </div>
+            ))}
+          </div>
 
-            <button
-              type="submit"
-              className="fm-btn primary"
-              style={{ marginTop: 4, padding: '13px 20px', fontSize: 14, justifyContent: 'center' }}
-              disabled={loading}
-            >
-              {loading ? 'Signing in…' : 'Sign in →'}
-            </button>
-          </form>
+          {/* Footer stamp */}
+          <div className="fm-login-hero-footer">
+            FRBAMS v2 · University of the Visayas · {new Date().getFullYear()}
+          </div>
         </div>
+      </div>
 
-        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--fg-4)' }}>
-          Contact your system administrator for login credentials.
-        </p>
+      {/* ── Right form panel ── */}
+      <div className="fm-login-form-panel">
+        <div className="fm-login-form-inner">
+          <div className="fm-login-form-card">
+            <div className="fm-login-form-header">
+              <h1>Sign in</h1>
+              <p>Enter your administrator credentials to continue.</p>
+            </div>
+
+            <form onSubmit={submit}>
+              <div className="fm-login-field">
+                <label className="fm-login-label">Email address</label>
+                <input
+                  className="fm-input"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@uv.edu.ph"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="fm-login-field">
+                <label className="fm-login-label">Password</label>
+                <input
+                  className="fm-input"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  autoFocus
+                />
+              </div>
+
+              {error && (
+                <div style={{
+                  fontSize: 12.5, color: 'var(--red)',
+                  background: 'var(--red-soft)',
+                  padding: '10px 14px', borderRadius: 'var(--r-sm)',
+                  marginBottom: 12,
+                  border: '1px solid color-mix(in srgb, var(--red) 20%, transparent)',
+                }}>
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="fm-btn primary fm-login-submit"
+                disabled={loading}
+              >
+                {loading ? 'Signing in…' : 'Sign in →'}
+              </button>
+            </form>
+          </div>
+
+          <div className="fm-login-footer">
+            Contact your system administrator<br />
+            for login credentials or account issues.
+          </div>
+        </div>
       </div>
     </div>
   )

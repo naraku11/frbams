@@ -1,6 +1,6 @@
 // shell.jsx — Sidebar + topbar shells used by web screens
 import React from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { I } from './icons'
 import { api } from './api'
 
@@ -21,6 +21,20 @@ const NAV3_DEFS = [
   { label: 'Section',          icon: 'Grid4',  to: '/sections' },
 ]
 
+// Breadcrumb label map
+const ROUTE_LABELS = {
+  '/dashboard':  'Dashboard',
+  '/log':        'Attendance Log',
+  '/students':   'Students',
+  '/reports':    'Reports',
+  '/leave':      'Leave Requests',
+  '/alerts':     'Notifications',
+  '/settings':   'Settings',
+  '/programs':   'Course / Program',
+  '/curriculum': 'Curriculum',
+  '/sections':   'Section',
+}
+
 function NavItem({ item, counts }) {
   const badge = item.badgeKey ? (counts[item.badgeKey] ?? null) : null
   return (
@@ -28,7 +42,7 @@ function NavItem({ item, counts }) {
       to={item.to}
       className={({ isActive }) => isActive ? 'active' : ''}
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         {React.createElement(I[item.icon], { size: 15 })}
         {item.label}
       </span>
@@ -43,12 +57,12 @@ function UVMark({ logoUrl, shortName }) {
       <img
         src={logoUrl}
         alt="logo"
-        style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 4, flexShrink: 0 }}
+        style={{ width: 30, height: 30, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }}
       />
     )
   }
   return (
-    <div className="fm-brand-mark" style={{ fontSize: 11, fontWeight: 800, letterSpacing: '-0.02em' }}>
+    <div className="fm-brand-mark" style={{ fontSize: 11, fontWeight: 900, letterSpacing: '-0.03em' }}>
       {shortName || 'UV'}
     </div>
   )
@@ -64,7 +78,7 @@ export function Sidebar({ layout = 'sidebar' }) {
   const initials  = user.initials ?? 'DW'
   const name      = user.name ?? 'Dr. Wexler'
   const role      = user.role ?? 'Vice Principal'
-  const [counts,  setCounts]   = React.useState({})
+  const [counts,   setCounts]   = React.useState({})
   const [branding, setBranding] = React.useState(readBranding)
 
   React.useEffect(() => {
@@ -112,49 +126,71 @@ export function Sidebar({ layout = 'sidebar' }) {
 
   return (
     <div className="fm-side">
+      {/* Brand */}
       <div className="fm-side-top">
         <div className="fm-brand">
           <UVMark logoUrl={branding.logoUrl} shortName={branding.shortName} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
             <span style={{
               color: 'var(--side-brand-fg)',
-              fontWeight: 700, fontSize: 14.5,
-              letterSpacing: '-0.025em', lineHeight: 1.1,
+              fontWeight: 800, fontSize: 15,
+              letterSpacing: '-0.03em', lineHeight: 1.1,
             }}>FRBAMS</span>
             <span style={{
               color: 'var(--side-fg)',
-              fontSize: 9.5, letterSpacing: '0.01em',
-              lineHeight: 1, opacity: 0.8,
+              fontSize: 9, letterSpacing: '0.03em',
+              lineHeight: 1, opacity: 0.65,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              textTransform: 'uppercase',
+              fontWeight: 500,
             }}>{branding.schoolName || 'University of the Visayas'}</span>
           </div>
         </div>
       </div>
-      <div className="fm-side-section">Live</div>
-      <nav className="fm-nav">
-        {NAV_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
-      </nav>
-      <div className="fm-side-section">Manage</div>
-      <nav className="fm-nav">
-        {NAV2_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
-      </nav>
-      <div className="fm-side-section">Academic</div>
-      <nav className="fm-nav">
-        {NAV3_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
-      </nav>
+
+      {/* Nav groups */}
+      <div style={{ flex: 1, overflow: 'auto', paddingBottom: 8 }}>
+        <div className="fm-side-section">Live</div>
+        <nav className="fm-nav">
+          {NAV_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
+        </nav>
+        <div className="fm-side-section">Manage</div>
+        <nav className="fm-nav">
+          {NAV2_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
+        </nav>
+        <div className="fm-side-section">Academic</div>
+        <nav className="fm-nav">
+          {NAV3_DEFS.map(n => <NavItem key={n.to} item={n} counts={counts} />)}
+        </nav>
+      </div>
+
+      {/* Footer */}
       <div className="fm-side-foot">
-        <div className="fm-avatar">{initials}</div>
-        <div style={{ fontSize: 12, lineHeight: 1.3, flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 500, color: 'var(--side-fg-strong)' }}>{name}</div>
-          <div style={{ fontSize: 11, color: 'var(--side-fg)', marginTop: 1 }}>{role}</div>
+        <div className="fm-avatar" style={{
+          background: 'linear-gradient(135deg, #D4AC2E 0%, var(--accent) 100%)',
+          color: 'var(--side-bg)',
+          boxShadow: '0 2px 8px rgba(201,162,39,0.35), 0 0 0 2px rgba(255,255,255,0.14)',
+        }}>{initials}</div>
+        <div style={{ fontSize: 12, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontWeight: 700, color: 'var(--side-fg-strong)', fontSize: 12.5,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{name}</div>
+          <div style={{ fontSize: 10, color: 'var(--side-fg)', marginTop: 1.5, opacity: 0.65, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{role}</div>
         </div>
         <button
           className="fm-btn icon"
           onClick={logout}
           title="Sign out"
-          style={{ flexShrink: 0, padding: '6px', color: 'var(--side-fg)' }}
+          style={{
+            flexShrink: 0, padding: '6px',
+            color: 'var(--side-fg)',
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            boxShadow: 'none',
+          }}
         >
-          <I.Arrow size={14} style={{ transform: 'rotate(180deg)' }} />
+          <I.Arrow size={13} style={{ transform: 'rotate(180deg)' }} />
         </button>
       </div>
     </div>
@@ -162,15 +198,34 @@ export function Sidebar({ layout = 'sidebar' }) {
 }
 
 export function TopBar({ right }) {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const location  = useLocation()
   const [q, setQ] = React.useState('')
+
+  // Derive current page label for breadcrumb
+  const pageLabel = ROUTE_LABELS[location.pathname] ?? null
 
   return (
     <div className="fm-topbar">
-      <div className="fm-search">
-        <I.Search size={14} />
+      {/* Left: breadcrumb */}
+      <div className="fm-topbar-title">
+        <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>FRBAMS</span>
+        {pageLabel && (
+          <>
+            <span className="fm-topbar-sep">/</span>
+            <span className="fm-topbar-crumb">{pageLabel}</span>
+          </>
+        )}
+      </div>
+
+      {/* Center: search */}
+      <div className="fm-search" style={{ margin: '0 auto' }}>
+        <I.Search size={13} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
         <input
-          style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--fg)', width: '100%' }}
+          style={{
+            border: 'none', outline: 'none', background: 'transparent',
+            fontSize: 13, color: 'var(--fg)', width: '100%',
+          }}
           placeholder="Search students, classes, IDs…"
           value={q}
           onChange={e => setQ(e.target.value)}
@@ -181,12 +236,34 @@ export function TopBar({ right }) {
             }
           }}
         />
+        {q && (
+          <button
+            onClick={() => setQ('')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--fg-4)', padding: 0, display: 'flex', flexShrink: 0,
+            }}
+          >
+            <I.X size={12} />
+          </button>
+        )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+
+      {/* Right: actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {right}
-        <span className="fm-pill mono dot ok">Live</span>
-        <NavLink to="/alerts">
-          <button className="fm-btn icon" title="Notifications"><I.Bell /></button>
+        {/* Live indicator — animated pulse dot */}
+        <span className="fm-pill dot ok" style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          background: 'var(--green-soft)',
+          color: 'var(--green)',
+          boxShadow: `inset 0 0 0 1px color-mix(in srgb, var(--green) 22%, transparent)`,
+        }}>Live</span>
+        <NavLink to="/alerts" style={{ display: 'flex' }}>
+          <button className="fm-btn icon" title="Notifications" style={{ position: 'relative' }}>
+            <I.Bell size={15} />
+          </button>
         </NavLink>
       </div>
     </div>
