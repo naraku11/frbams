@@ -1,9 +1,17 @@
 Options -Indexes +FollowSymLinks
 
-# Block direct access to sensitive files
+# Block direct access to sensitive files (FilesMatch for pattern coverage)
 <FilesMatch "^(\.env|\.env\.example|composer\.json|composer\.lock)$">
     Require all denied
 </FilesMatch>
+
+# Belt-and-suspenders: explicit deny by filename in case FilesMatch is overridden by parent config
+<Files ".env">
+    Require all denied
+</Files>
+<Files ".env.example">
+    Require all denied
+</Files>
 
 # Prevent executing PHP scripts uploaded via the asset uploader
 <Directory "uploads">

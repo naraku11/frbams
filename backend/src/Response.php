@@ -30,11 +30,25 @@ function require_auth(): array
     }
 }
 
-/** Same as require_auth but asserts caller is a staff user (not a student). */
+/** Same as require_auth but asserts caller is any staff user (not a student). */
 function require_admin(): array
 {
     $payload = require_auth();
     $allowed = ['super_admin', 'admin', 'vice_principal', 'teacher', 'staff'];
+    if (!in_array($payload['role'] ?? '', $allowed, true)) {
+        error_out('Forbidden', 403);
+    }
+    return $payload;
+}
+
+/**
+ * Require caller to be a manager-level staff member.
+ * Used on write/delete operations to prevent teacher/staff roles from mutating data.
+ */
+function require_manager(): array
+{
+    $payload = require_auth();
+    $allowed = ['super_admin', 'admin', 'vice_principal'];
     if (!in_array($payload['role'] ?? '', $allowed, true)) {
         error_out('Forbidden', 403);
     }
@@ -55,8 +69,16 @@ function body(): array
 {
     static $parsed = null;
     if ($parsed === null) {
-        $raw    = file_get_contents('php://input');
-        $parsed = json_decode($raw ?: '{}', true) ?? [];
+        $raw = file_get_contents('php://input');
+        if ($raw && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+                error_out('Invalid JSON body', 400);
+            }
+            $parsed = $decoded ?? [];
+        } else {
+            $parsed = [];
+        }
     }
     return $parsed;
 }
