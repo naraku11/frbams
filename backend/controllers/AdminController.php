@@ -9,32 +9,29 @@ class AdminController
     {
         $user  = require_admin();
         $sid   = (int) ($user['school_id'] ?? 1);
-        $today = date('Y-m-d');
+        $tz    = new \DateTimeZone($user['school_timezone'] ?? 'UTC');
+        $today = (new \DateTime('now', $tz))->format('Y-m-d');
 
         $pdo = db();
 
-        $totalStmt = $pdo->prepare('SELECT COUNT(*) FROM students WHERE is_active = 1 AND school_id = ?');
-        $totalStmt->execute([$sid]);
-        $total = (int) $totalStmt->fetchColumn();
-
-        $presentStmt = $pdo->prepare(
-            "SELECT COUNT(DISTINCT student_id) AS n FROM attendance_records
-             WHERE record_date = ? AND status IN ('present','late') AND school_id = ?"
+        // Single query for all four headline stats (replaces 4 serial round-trips)
+        $statsStmt = $pdo->prepare(
+            "SELECT
+                COUNT(DISTINCT s.id)                                                              AS total,
+                COUNT(DISTINCT CASE WHEN ar.status IN ('present','late') THEN ar.student_id END) AS present,
+                COUNT(DISTINCT CASE WHEN ar.status = 'late'             THEN ar.student_id END)  AS late,
+                COUNT(DISTINCT CASE WHEN ar.status = 'absent'           THEN ar.student_id END)  AS absent
+             FROM students s
+             LEFT JOIN attendance_records ar
+                ON ar.student_id = s.id AND ar.record_date = ? AND ar.school_id = ?
+             WHERE s.is_active = 1 AND s.school_id = ?"
         );
-        $presentStmt->execute([$today, $sid]);
-        $present = (int) $presentStmt->fetchColumn();
-
-        $lateStmt = $pdo->prepare(
-            "SELECT COUNT(*) AS n FROM attendance_records WHERE record_date = ? AND status = 'late' AND school_id = ?"
-        );
-        $lateStmt->execute([$today, $sid]);
-        $late = (int) $lateStmt->fetchColumn();
-
-        $absentStmt = $pdo->prepare(
-            "SELECT COUNT(*) AS n FROM attendance_records WHERE record_date = ? AND status = 'absent' AND school_id = ?"
-        );
-        $absentStmt->execute([$today, $sid]);
-        $absent = (int) $absentStmt->fetchColumn();
+        $statsStmt->execute([$today, $sid, $sid]);
+        $stats   = $statsStmt->fetch();
+        $total   = (int) $stats['total'];
+        $present = (int) $stats['present'];
+        $late    = (int) $stats['late'];
+        $absent  = (int) $stats['absent'];
 
         // Recent check-ins
         $recentStmt = $pdo->prepare(
@@ -78,18 +75,20 @@ class AdminController
             $weekBars[] = ['d' => $dow, 'v' => $barMap[$d] ?? 0, 'off' => !isset($barMap[$d])];
         }
 
-        // Per-grade current-day breakdown
+        // Per-grade breakdown — scoped to school_id
         $gradeStmt = $pdo->prepare(
             "SELECT g.label AS grade,
                     COUNT(DISTINCT s.id) AS total,
                     COUNT(DISTINCT CASE WHEN ar.status IN ('present','late') THEN ar.student_id END) AS present
              FROM   grades g
-             JOIN   students s ON s.grade_id = g.id AND s.is_active = 1
-             LEFT JOIN attendance_records ar ON ar.student_id = s.id AND ar.record_date = ?
+             JOIN   students s ON s.grade_id = g.id AND s.is_active = 1 AND s.school_id = ?
+             LEFT JOIN attendance_records ar
+                ON ar.student_id = s.id AND ar.record_date = ? AND ar.school_id = ?
+             WHERE  g.school_id = ?
              GROUP  BY g.id, g.label
              ORDER  BY g.label"
         );
-        $gradeStmt->execute([$today]);
+        $gradeStmt->execute([$sid, $today, $sid, $sid]);
         $byGrade = $gradeStmt->fetchAll();
 
         json_out([
@@ -427,7 +426,7 @@ class AdminController
     /** POST /admin/students — enroll a new student */
     public static function enrollStudent(): void
     {
-        $user     = require_admin();
+        $user     = require_manager();
         $schoolId = (int) ($user['school_id'] ?? 1);
         $body     = body();
 
@@ -458,15 +457,14 @@ class AdminController
             error_out('Invalid email address', 422);
         }
 
-        // Generate a random 12-char temporary password; the student must change it on first login.
-        $tempPassword = bin2hex(random_bytes(6)); // 12 hex chars
+        $tempPassword = bin2hex(random_bytes(6));
         $hash         = password_hash($tempPassword, PASSWORD_BCRYPT);
 
         db()->prepare(
             'INSERT INTO students
                (school_id, student_code, first_name, last_name, email,
-                grade_id, password_hash, is_active, enrolled_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())'
+                grade_id, password_hash, must_change_password, is_active, enrolled_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, NOW())'
         )->execute([
             $schoolId, $studentCode, $firstName, $lastName,
             $email !== '' ? $email : null,
@@ -474,17 +472,17 @@ class AdminController
         ]);
 
         json_out([
-            'studentCode'     => $studentCode,
-            'name'            => "{$firstName} {$lastName}",
-            'grade'           => $gradeLabel,
-            'tempPassword'    => $tempPassword, // shown once — student should change on first login
+            'studentCode'  => $studentCode,
+            'name'         => "{$firstName} {$lastName}",
+            'grade'        => $gradeLabel,
+            'tempPassword' => $tempPassword,
         ], 201);
     }
 
     /** POST /admin/students/bulk — enroll up to 200 students from a CSV import */
     public static function bulkEnrollStudents(): void
     {
-        $user     = require_admin();
+        $user     = require_manager();
         $schoolId = (int) ($user['school_id'] ?? 1);
         $body     = body();
 
@@ -496,7 +494,6 @@ class AdminController
             error_out('Maximum 200 students per import', 422);
         }
 
-        // Pre-load all active grades for this school into a label→id map
         $gStmt = db()->prepare(
             'SELECT id, label FROM grades WHERE is_active = 1 AND school_id = ? ORDER BY label'
         );
@@ -513,8 +510,8 @@ class AdminController
         $insert = db()->prepare(
             'INSERT INTO students
                (school_id, student_code, first_name, last_name, email,
-                grade_id, password_hash, is_active, enrolled_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())'
+                grade_id, password_hash, must_change_password, is_active, enrolled_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, NOW())'
         );
 
         $results  = [];
@@ -614,7 +611,7 @@ class AdminController
     /** PATCH /admin/settings/recognition */
     public static function saveRecognitionSettings(): void
     {
-        $user     = require_admin();
+        $user     = require_manager();
         $schoolId = (int) ($user['school_id'] ?? 1);
         $body     = body();
 
@@ -673,7 +670,7 @@ class AdminController
         $dailyStmt->execute([$sid, $month, $sid]);
         $daily = $dailyStmt->fetchAll();
 
-        // By course
+        // By course — scoped to school_id to prevent cross-school data exposure
         $courseStmt = $pdo->prepare(
             "SELECT c.name AS course, COUNT(DISTINCT ce.student_id) AS enrolled,
                     COUNT(DISTINCT CASE WHEN ar.status IN ('present','late') THEN ar.student_id END) AS attended,
@@ -684,10 +681,11 @@ class AdminController
              JOIN   course_sessions    cs ON cs.course_id = c.id
                     AND DATE_FORMAT(cs.session_date, '%Y-%m') = ?
              LEFT JOIN attendance_records ar ON ar.session_id = cs.id
+             WHERE  c.school_id = ?
              GROUP  BY c.id, c.name
              ORDER  BY c.name"
         );
-        $courseStmt->execute([$month]);
+        $courseStmt->execute([$month, $sid]);
         $courses = $courseStmt->fetchAll();
 
         json_out(['month' => $month, 'daily' => $daily, 'courses' => $courses]);
@@ -790,7 +788,7 @@ class AdminController
     /** POST /admin/courses */
     public static function createCourse(): void
     {
-        $user  = require_admin();
+        $user  = require_manager();
         $sid   = (int) ($user['school_id'] ?? 1);
         $body  = body();
 
@@ -968,7 +966,7 @@ class AdminController
     /** POST /admin/programs */
     public static function createProgram(): void
     {
-        $user  = require_admin();
+        $user  = require_manager();
         $sid   = (int) ($user['school_id'] ?? 1);
         $body  = body();
 
@@ -992,7 +990,7 @@ class AdminController
     /** PATCH /admin/programs/:id */
     public static function updateProgram(string $id): void
     {
-        $user   = require_admin();
+        $user   = require_manager();
         $sid    = (int) ($user['school_id'] ?? 1);
         $progId = (int) $id;
         $body   = body();
@@ -1011,16 +1009,21 @@ class AdminController
         if (empty($sets)) error_out('Nothing to update');
 
         $params[] = $progId; $params[] = $sid;
-        db()->prepare("UPDATE programs SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?")->execute($params);
+        $stmt = db()->prepare("UPDATE programs SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?");
+        $stmt->execute($params);
+        if ($stmt->rowCount() === 0) error_out('Program not found', 404);
+
         json_out(['ok' => true]);
     }
 
     /** DELETE /admin/programs/:id */
     public static function deleteProgram(string $id): void
     {
-        $user   = require_admin();
-        $sid    = (int) ($user['school_id'] ?? 1);
-        db()->prepare("UPDATE programs SET is_active = 0 WHERE id = ? AND school_id = ?")->execute([(int) $id, $sid]);
+        $user = require_manager();
+        $sid  = (int) ($user['school_id'] ?? 1);
+        $stmt = db()->prepare("UPDATE programs SET is_active = 0 WHERE id = ? AND school_id = ?");
+        $stmt->execute([(int) $id, $sid]);
+        if ($stmt->rowCount() === 0) error_out('Program not found', 404);
         json_out(['ok' => true]);
     }
 
@@ -1046,7 +1049,7 @@ class AdminController
     /** POST /admin/curricula */
     public static function createCurriculum(): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
         $body = body();
 
@@ -1067,7 +1070,7 @@ class AdminController
     /** PATCH /admin/curricula/:id */
     public static function updateCurriculum(string $id): void
     {
-        $user   = require_admin();
+        $user   = require_manager();
         $sid    = (int) ($user['school_id'] ?? 1);
         $currId = (int) $id;
         $body   = body();
@@ -1090,16 +1093,21 @@ class AdminController
         if (empty($sets)) error_out('Nothing to update');
 
         $params[] = $currId; $params[] = $sid;
-        db()->prepare("UPDATE curricula SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?")->execute($params);
+        $stmt = db()->prepare("UPDATE curricula SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?");
+        $stmt->execute($params);
+        if ($stmt->rowCount() === 0) error_out('Curriculum not found', 404);
+
         json_out(['ok' => true]);
     }
 
     /** DELETE /admin/curricula/:id */
     public static function deleteCurriculum(string $id): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
-        db()->prepare("UPDATE curricula SET is_active = 0 WHERE id = ? AND school_id = ?")->execute([(int) $id, $sid]);
+        $stmt = db()->prepare("UPDATE curricula SET is_active = 0 WHERE id = ? AND school_id = ?");
+        $stmt->execute([(int) $id, $sid]);
+        if ($stmt->rowCount() === 0) error_out('Curriculum not found', 404);
         json_out(['ok' => true]);
     }
 
@@ -1131,7 +1139,7 @@ class AdminController
     /** POST /admin/sections */
     public static function createSection(): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
         $body = body();
 
@@ -1154,7 +1162,7 @@ class AdminController
     /** PATCH /admin/sections/:id */
     public static function updateSection(string $id): void
     {
-        $user   = require_admin();
+        $user   = require_manager();
         $sid    = (int) ($user['school_id'] ?? 1);
         $sectId = (int) $id;
         $body   = body();
@@ -1170,16 +1178,21 @@ class AdminController
         if (empty($sets)) error_out('Nothing to update');
 
         $params[] = $sectId; $params[] = $sid;
-        db()->prepare("UPDATE sections SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?")->execute($params);
+        $stmt = db()->prepare("UPDATE sections SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?");
+        $stmt->execute($params);
+        if ($stmt->rowCount() === 0) error_out('Section not found', 404);
+
         json_out(['ok' => true]);
     }
 
     /** DELETE /admin/sections/:id */
     public static function deleteSection(string $id): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
-        db()->prepare("UPDATE sections SET is_active = 0 WHERE id = ? AND school_id = ?")->execute([(int) $id, $sid]);
+        $stmt = db()->prepare("UPDATE sections SET is_active = 0 WHERE id = ? AND school_id = ?");
+        $stmt->execute([(int) $id, $sid]);
+        if ($stmt->rowCount() === 0) error_out('Section not found', 404);
         json_out(['ok' => true]);
     }
 
@@ -1206,9 +1219,16 @@ class AdminController
     /** PATCH /admin/school-info */
     public static function updateSchoolInfo(): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
         $body = body();
+
+        // Validate timezone before persisting
+        if (array_key_exists('timezone', $body) && (string) $body['timezone'] !== '') {
+            if (!in_array((string) $body['timezone'], timezone_identifiers_list(), true)) {
+                error_out('Invalid timezone identifier', 422);
+            }
+        }
 
         $map = [
             'name'       => 'name',
@@ -1235,7 +1255,7 @@ class AdminController
     /** POST /admin/upload-asset */
     public static function uploadAsset(): void
     {
-        require_admin();
+        require_manager();
 
         if (empty($_FILES['file'])) error_out('No file provided', 400);
 
@@ -1244,7 +1264,6 @@ class AdminController
         if ($file['error'] !== UPLOAD_ERR_OK) error_out('Upload error', 400);
         if ($file['size'] > 2097152)          error_out('Max file size is 2 MB', 413);
 
-        // Use finfo to detect the REAL MIME type — never trust the client-supplied value.
         $finfo    = new finfo(FILEINFO_MIME_TYPE);
         $realMime = $finfo->file($file['tmp_name']);
 
@@ -1255,8 +1274,6 @@ class AdminController
             'image/webp'              => 'webp',
             'image/x-icon'            => 'ico',
             'image/vnd.microsoft.icon'=> 'ico',
-            // SVG is intentionally excluded — SVGs can embed JavaScript and are
-            // dangerous to serve from the same origin. If needed, serve from a CDN.
         ];
 
         if (!isset($allowed[$realMime])) error_out('File type not allowed', 415);
@@ -1268,9 +1285,25 @@ class AdminController
             }
         }
 
-        $filename = bin2hex(random_bytes(16)) . '.' . $allowed[$realMime];
+        $ext      = $allowed[$realMime];
+        $filename = bin2hex(random_bytes(16)) . '.' . $ext;
         if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
             error_out('Could not save file', 500);
+        }
+
+        // Re-encode raster images through GD to strip EXIF/metadata
+        $gdSupported = ['jpg', 'png', 'gif', 'webp'];
+        if (function_exists('imagecreatefromstring') && in_array($ext, $gdSupported, true)) {
+            $img = @imagecreatefromstring((string) file_get_contents($uploadDir . $filename));
+            if ($img !== false) {
+                match($ext) {
+                    'png'  => imagepng($img, $uploadDir . $filename, 6),
+                    'gif'  => imagegif($img, $uploadDir . $filename),
+                    'webp' => imagewebp($img, $uploadDir . $filename, 85),
+                    default => imagejpeg($img, $uploadDir . $filename, 85),
+                };
+                imagedestroy($img);
+            }
         }
 
         $base = rtrim(env('APP_URL', ''), '/');
@@ -1308,7 +1341,7 @@ class AdminController
     /** PATCH /admin/settings/privacy */
     public static function savePrivacySettings(): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
         $body = body();
 
@@ -1356,41 +1389,46 @@ class AdminController
         $stmt->execute([$sid]);
         $row = $stmt->fetch();
 
-        json_out($row ?: ['notificationEmail' => '', 'webhookUrl' => '', 'smsProvider' => '', 'smsApiKey' => '']);
+        json_out([
+            'notificationEmail' => $row['notificationEmail'] ?? '',
+            'webhookUrl'        => $row['webhookUrl']        ?? '',
+            'smsProvider'       => $row['smsProvider']       ?? '',
+            'smsApiKey'         => ($row['smsApiKey'] ?? '') ? '••••••••' : '',
+        ]);
     }
 
     /** PATCH /admin/settings/integrations */
     public static function saveIntegrationSettings(): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
         $body = body();
 
-        $email   = trim((string) ($body['notificationEmail'] ?? ''));
-        $webhook = trim((string) ($body['webhookUrl']        ?? ''));
-        $smsProvider = trim((string) ($body['smsProvider']  ?? ''));
-        $smsKey  = trim((string) ($body['smsApiKey']         ?? ''));
+        $email       = trim((string) ($body['notificationEmail'] ?? ''));
+        $webhook     = trim((string) ($body['webhookUrl']        ?? ''));
+        $smsProvider = trim((string) ($body['smsProvider']       ?? ''));
+        $smsKey      = trim((string) ($body['smsApiKey']         ?? ''));
 
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             error_out('Invalid notification email', 422);
         }
 
+        // Ensure a row exists for this school before updating
+        db()->prepare('INSERT IGNORE INTO school_settings (school_id) VALUES (?)')->execute([$sid]);
+
+        $sets   = ['notification_email = ?', 'webhook_url = ?', 'sms_provider = ?'];
+        $params = [$email ?: null, $webhook ?: null, $smsProvider ?: null];
+
+        // Only overwrite the SMS key if a real (non-masked) value is provided
+        if ($smsKey !== '' && $smsKey !== '••••••••') {
+            $sets[]   = 'sms_api_key = ?';
+            $params[] = $smsKey;
+        }
+
+        $params[] = $sid;
         db()->prepare(
-            'INSERT INTO school_settings
-               (school_id, notification_email, webhook_url, sms_provider, sms_api_key)
-             VALUES (?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-               notification_email = VALUES(notification_email),
-               webhook_url        = VALUES(webhook_url),
-               sms_provider       = VALUES(sms_provider),
-               sms_api_key        = VALUES(sms_api_key)'
-        )->execute([
-            $sid,
-            $email       ?: null,
-            $webhook     ?: null,
-            $smsProvider ?: null,
-            $smsKey      ?: null,
-        ]);
+            'UPDATE school_settings SET ' . implode(', ', $sets) . ' WHERE school_id = ?'
+        )->execute($params);
 
         json_out(['ok' => true]);
     }
@@ -1419,7 +1457,7 @@ class AdminController
     /** POST /admin/staff */
     public static function createStaff(): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
         $body = body();
 
@@ -1450,8 +1488,8 @@ class AdminController
         db()->prepare(
             'INSERT INTO users
                (school_id, employee_code, first_name, last_name, email,
-                password_hash, role, department, is_active)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)'
+                password_hash, role, department, must_change_password, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1)'
         )->execute([$sid, $employeeCode, $firstName, $lastName, $email, $hash, $role, $department]);
 
         json_out([
@@ -1465,7 +1503,7 @@ class AdminController
     /** PATCH /admin/staff/:id */
     public static function updateStaff(string $staffId): void
     {
-        $user = require_admin();
+        $user = require_manager();
         $sid  = (int) ($user['school_id'] ?? 1);
         $id   = (int) $staffId;
         $body = body();
@@ -1490,9 +1528,11 @@ class AdminController
             $params[] = $val;
         }
         if (empty($sets)) error_out('Nothing to update');
-        $params[] = $id;
 
-        db()->prepare("UPDATE users SET " . implode(', ', $sets) . " WHERE id = ?")->execute($params);
+        $params[] = $id;
+        $params[] = $sid;
+
+        db()->prepare("UPDATE users SET " . implode(', ', $sets) . " WHERE id = ? AND school_id = ?")->execute($params);
         json_out(['ok' => true]);
     }
 }

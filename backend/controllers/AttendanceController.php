@@ -23,14 +23,11 @@ class AttendanceController
             error_out('Invalid capturedAt format. Use YYYY-MM-DDTHH:MM:SS.');
         }
 
-        // Validate deviceUuid — must be a UUID v4 or similar hex token (max 64 chars)
         $deviceUuid = substr(preg_replace('/[^a-zA-Z0-9\-]/', '', $deviceUuid), 0, 64);
         if ($deviceUuid === '') {
             error_out('Invalid deviceUuid');
         }
 
-        // Reject capturedAt timestamps more than 15 minutes in the future or more
-        // than 24 hours in the past — prevents time-manipulation abuse.
         $capturedTs = strtotime($capturedAt);
         if ($capturedTs === false || $capturedTs > time() + 900 || $capturedTs < time() - 86400) {
             error_out('capturedAt timestamp is out of acceptable range.');
@@ -42,15 +39,16 @@ class AttendanceController
         $geofenceId   = isset($body['geofenceId'])         ? (int)   $body['geofenceId']         : null;
         $distanceM    = isset($body['distanceM'])          ? (float) $body['distanceM']          : null;
 
-        // Clamp confidence to [0, 1]
         if ($confidence !== null) {
             $confidence = max(0.0, min(1.0, $confidence));
         }
 
-        $pdo   = db();
-        $today = date('Y-m-d');
+        $pdo = db();
 
-        // Resolve current session for this student
+        // Use the school's configured timezone so "today" is correct regardless of server location
+        $tz    = new \DateTimeZone($payload['school_timezone'] ?? 'UTC');
+        $today = (new \DateTime('now', $tz))->format('Y-m-d');
+
         $sessionStmt = $pdo->prepare(
             "SELECT cs.id
              FROM   course_sessions    cs
@@ -64,7 +62,6 @@ class AttendanceController
         $session   = $sessionStmt->fetch();
         $sessionId = $session ? (int) $session['id'] : null;
 
-        // Prevent duplicate check-in for same student/day/session
         $dupStmt = $pdo->prepare(
             'SELECT id FROM attendance_records
              WHERE student_id = ? AND record_date = ?
@@ -76,13 +73,11 @@ class AttendanceController
             error_out('Already checked in for this session', 409);
         }
 
-        // Look up device id (optional)
         $devStmt = $pdo->prepare('SELECT id FROM devices WHERE device_uuid = ? LIMIT 1');
         $devStmt->execute([$deviceUuid]);
         $device   = $devStmt->fetch();
         $deviceId = $device ? (int) $device['id'] : null;
 
-        // Determine status: late if > 15 min past session start
         $status = 'present';
         if ($sessionId) {
             $lateStmt = $pdo->prepare(
@@ -122,7 +117,9 @@ class AttendanceController
         $lat = isset($body['locationLat']) ? (float) $body['locationLat'] : null;
         $lng = isset($body['locationLng']) ? (float) $body['locationLng'] : null;
 
-        $today = date('Y-m-d');
+        $tz    = new \DateTimeZone($payload['school_timezone'] ?? 'UTC');
+        $today = (new \DateTime('now', $tz))->format('Y-m-d');
+
         $stmt  = db()->prepare(
             'SELECT id FROM attendance_records
              WHERE student_id = ? AND record_date = ? AND check_out_time IS NULL
@@ -159,53 +156,60 @@ class AttendanceController
             error_out('events must be an array');
         }
 
-        // Limit bulk sync to 500 events per request to prevent DoS
         $events = array_slice($events, 0, 500);
 
         $synced    = 0;
         $conflicts = 0;
 
-        foreach ($events as $ev) {
-            $method     = $ev['method']      ?? 'face';
-            $capturedAt = $ev['capturedAt']  ?? '';
-            $confidence = isset($ev['confidence'])   ? (float) $ev['confidence']   : null;
-            $lat        = isset($ev['locationLat'])  ? (float) $ev['locationLat']  : null;
-            $lng        = isset($ev['locationLng'])  ? (float) $ev['locationLng']  : null;
+        $pdo = db();
+        $pdo->beginTransaction();
 
-            if (!$capturedAt || !preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/', $capturedAt) || !in_array($method, ['face', 'pin'], true)) {
-                $conflicts++;
-                continue;
-            }
-
-            // Clamp confidence to [0, 1]
-            if ($confidence !== null) {
-                $confidence = max(0.0, min(1.0, $confidence));
-            }
-
-            $date = substr($capturedAt, 0, 10);
-
-            // Dedup: skip if already recorded for same student + day
-            $dup = db()->prepare(
+        try {
+            $dupStmt = $pdo->prepare(
                 'SELECT id FROM attendance_records WHERE student_id = ? AND record_date = ? LIMIT 1'
             );
-            $dup->execute([$sid, $date]);
-            if ($dup->fetch()) {
+            $insStmt = $pdo->prepare(
+                'INSERT IGNORE INTO attendance_records
+                   (school_id, student_id, record_date, check_in_time, status, method,
+                    confidence, location_lat, location_lng, synced_at, is_offline_capture)
+                 VALUES (?, ?, ?, ?, "present", ?, ?, ?, ?, NOW(), 1)'
+            );
+
+            foreach ($events as $ev) {
+                $method     = $ev['method']      ?? 'face';
+                $capturedAt = $ev['capturedAt']  ?? '';
+                $confidence = isset($ev['confidence'])   ? (float) $ev['confidence']   : null;
+                $lat        = isset($ev['locationLat'])  ? (float) $ev['locationLat']  : null;
+                $lng        = isset($ev['locationLng'])  ? (float) $ev['locationLng']  : null;
+
+                if (!$capturedAt
+                    || !preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/', $capturedAt)
+                    || !in_array($method, ['face', 'pin'], true)
+                ) {
+                    $conflicts++;
+                    continue;
+                }
+
+                if ($confidence !== null) {
+                    $confidence = max(0.0, min(1.0, $confidence));
+                }
+
+                $date = substr($capturedAt, 0, 10);
+
+                $dupStmt->execute([$sid, $date]);
+                if ($dupStmt->fetch()) {
+                    $synced++;
+                    continue;
+                }
+
+                $insStmt->execute([$schoolId, $sid, $date, $capturedAt, $method, $confidence, $lat, $lng]);
                 $synced++;
-                continue;
             }
 
-            try {
-                db()->prepare(
-                    'INSERT IGNORE INTO attendance_records
-                       (school_id, student_id, record_date, check_in_time, status, method,
-                        confidence, location_lat, location_lng, synced_at, is_offline_capture)
-                     VALUES (?, ?, ?, ?, "present", ?, ?, ?, ?, NOW(), 1)'
-                )->execute([$schoolId, $sid, $date, $capturedAt, $method, $confidence, $lat, $lng]);
-
-                $synced++;
-            } catch (PDOException) {
-                $conflicts++;
-            }
+            $pdo->commit();
+        } catch (\Throwable) {
+            $pdo->rollBack();
+            error_out('Sync failed', 500);
         }
 
         json_out(['synced' => $synced, 'conflicts' => $conflicts]);
