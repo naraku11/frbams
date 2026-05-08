@@ -986,14 +986,22 @@ function SettingsBranding() {
   const [error,    setError]    = React.useState('')
 
   React.useEffect(() => {
+    const local = (() => { try { return JSON.parse(localStorage.getItem('frbams_branding') || '{}') } catch { return {} } })()
     api.schoolInfo().then(d => setForm({
       name:       d.name       ?? '',
-      shortName:  d.shortName  ?? '',
-      logoUrl:    d.logoUrl    ?? '',
-      faviconUrl: d.faviconUrl ?? '',
+      shortName:  d.shortName  ?? local.shortName  ?? '',
+      logoUrl:    d.logoUrl    ?? local.logoUrl    ?? '',
+      faviconUrl: d.faviconUrl ?? local.faviconUrl ?? '',
       address:    d.address    ?? '',
       timezone:   d.timezone   ?? '',
-    })).catch(() => {})
+    })).catch(() => {
+      setForm(f => ({
+        ...f,
+        shortName:  local.shortName  ?? f.shortName,
+        logoUrl:    local.logoUrl    ?? f.logoUrl,
+        faviconUrl: local.faviconUrl ?? f.faviconUrl,
+      }))
+    })
   }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -1007,18 +1015,20 @@ function SettingsBranding() {
     setUploading(null)
   }
 
+  const applyBrandingLocally = (f) => {
+    const branding = { schoolName: f.name, shortName: f.shortName, logoUrl: f.logoUrl, faviconUrl: f.faviconUrl }
+    localStorage.setItem('frbams_branding', JSON.stringify(branding))
+    window.dispatchEvent(new Event('frbams:branding'))
+    const link = document.getElementById('frbams-favicon') || document.querySelector("link[rel~='icon']")
+    if (link) link.href = f.faviconUrl || 'data:,'
+  }
+
   const save = async () => {
     setSaving(true); setError('')
+    // Apply locally first so sidebar and favicon update immediately
+    applyBrandingLocally(form)
     try {
       await api.updateSchoolInfo(form)
-      const branding = { schoolName: form.name, shortName: form.shortName, logoUrl: form.logoUrl, faviconUrl: form.faviconUrl }
-      localStorage.setItem('frbams_branding', JSON.stringify(branding))
-      window.dispatchEvent(new Event('frbams:branding'))
-      if (form.faviconUrl) {
-        let link = document.querySelector("link[rel~='icon']")
-        if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link) }
-        link.href = form.faviconUrl
-      }
       setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (e) { setError(e.message) }
     setSaving(false)
