@@ -123,7 +123,7 @@ export function Sidebar({ layout = 'sidebar' }) {
       <div className="fm-topnav">
         <div className="fm-brand">
           <UVMark logoUrl={branding.logoUrl} shortName={branding.shortName} />
-          <span style={{ color: 'var(--side-brand-fg, var(--fg))' }}>FRBAMS</span>
+          <span style={{ color: 'var(--side-brand-fg, var(--fg))' }}>{branding.schoolName || 'FRBAMS'}</span>
         </div>
         <div className="fm-topnav-links">
           {NAV_DEFS.map(n => (

@@ -944,19 +944,24 @@ function SettingsNotifications() {
 
 function AssetUploadField({ label, value, onChange, onUpload, uploading }) {
   const ref = React.useRef()
+  const [imgBroken, setImgBroken] = React.useState(false)
+  const safeValue = value ?? ''
+
+  React.useEffect(() => { setImgBroken(false) }, [safeValue])
+
   return (
     <div>
       <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-        {value
-          ? <img src={value} alt={label} style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--bg)' }} />
+        {safeValue && !imgBroken
+          ? <img src={safeValue} alt={label} onError={() => setImgBroken(true)} style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--bg)' }} />
           : <div style={{ width: 48, height: 48, borderRadius: 8, border: '1px solid var(--line)', background: 'var(--line-2)', display: 'grid', placeItems: 'center', fontSize: 11, color: 'var(--fg-3)' }}>none</div>
         }
         <div style={{ flex: 1 }}>
           <input
             className="fm-input"
             placeholder="https://…"
-            value={value}
+            value={safeValue}
             onChange={e => onChange(e.target.value)}
             style={{ marginBottom: 6 }}
           />
@@ -966,13 +971,13 @@ function AssetUploadField({ label, value, onChange, onUpload, uploading }) {
               disabled={uploading}>
               {uploading ? 'Uploading…' : 'Upload file'}
             </button>
-            {value && (
-              <button className="fm-btn" style={{ fontSize: 12 }} onClick={() => onChange('')}>Remove</button>
+            {safeValue && (
+              <button className="fm-btn" style={{ fontSize: 12 }} onClick={() => { onChange(''); setImgBroken(false) }}>Remove</button>
             )}
           </div>
         </div>
       </div>
-      <input ref={ref} type="file" accept="image/*" style={{ display: 'none' }}
+      <input ref={ref} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon" style={{ display: 'none' }}
         onChange={e => { if (e.target.files[0]) { onUpload(e.target.files[0]); e.target.value = '' } }} />
     </div>
   )
