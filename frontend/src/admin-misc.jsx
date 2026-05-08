@@ -24,8 +24,9 @@ function parseCSV(text) {
   const FIELD_MAP = {
     firstname: 'firstName', lastname: 'lastName',
     studentcode: 'studentCode', studentid: 'studentCode', id: 'studentCode',
-    gradelabel: 'gradeLabel', grade: 'gradeLabel', section: 'gradeLabel',
-    email: 'email', guardianemail: 'email',
+    gradelabel: 'gradeLabel', grade: 'gradeLabel', yearlevel: 'gradeLabel', year: 'gradeLabel',
+    programcode: 'programCode', program: 'programCode', course: 'programCode',
+    email: 'email', guardianemail: 'email', personalemail: 'email',
   }
   const isHeader = raw0.some(h => FIELD_MAP[h])
   const dataLines = isHeader ? lines.slice(1) : lines
@@ -33,11 +34,11 @@ function parseCSV(text) {
   return dataLines.map(line => {
     const cols = splitLine(line)
     if (headers) {
-      const obj = { firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' }
+      const obj = { firstName: '', lastName: '', studentCode: '', gradeLabel: '', programCode: '', email: '' }
       headers.forEach((h, i) => { const f = FIELD_MAP[h]; if (f) obj[f] = cols[i] ?? '' })
       return obj
     }
-    return { firstName: cols[0] ?? '', lastName: cols[1] ?? '', studentCode: cols[2] ?? '', gradeLabel: cols[3] ?? '', email: cols[4] ?? '' }
+    return { firstName: cols[0] ?? '', lastName: cols[1] ?? '', studentCode: cols[2] ?? '', gradeLabel: cols[3] ?? '', programCode: cols[4] ?? '', email: cols[5] ?? '' }
   }).filter(r => r.firstName || r.lastName || r.studentCode)
 }
 
@@ -49,8 +50,8 @@ function rowError(r) {
 
 // ── EnrollDialog ─────────────────────────────────────────────────────────────
 
-function EnrollDialog({ open, grades, onClose, onEnrolled }) {
-  const EMPTY = { firstName: '', lastName: '', studentCode: '', gradeLabel: '', email: '' }
+function EnrollDialog({ open, grades, programs = [], onClose, onEnrolled }) {
+  const EMPTY = { firstName: '', lastName: '', studentCode: '', gradeLabel: '', programCode: '', email: '' }
   const [form,   setForm]   = React.useState(EMPTY)
   const [saving, setSaving] = React.useState(false)
   const [done,   setDone]   = React.useState(null)
@@ -98,7 +99,7 @@ function EnrollDialog({ open, grades, onClose, onEnrolled }) {
         <div style={{ flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:14 }}>
           {done && (
             <div style={{ padding:'14px 18px', borderRadius:10, background:'var(--accent-soft)', border:'1px solid var(--accent)', fontSize:13, lineHeight:1.5 }}>
-              <div><b style={{ fontWeight:600 }}>Enrolled:</b> {done.name} · <span className="mono">{done.studentCode}</span> · {done.grade}</div>
+              <div><b style={{ fontWeight:600 }}>Enrolled:</b> {done.name} · <span className="mono">{done.studentCode}</span> · {done.grade}{done.program ? ` · ${done.program}` : ''}</div>
               {done.tempPassword && (
                 <div style={{ marginTop:8, padding:'8px 12px', background:'var(--card)', borderRadius:7, display:'flex', alignItems:'center', gap:10 }}>
                   <span className="fm-muted" style={{ fontSize:12 }}>One-time password:</span>
@@ -130,19 +131,26 @@ function EnrollDialog({ open, grades, onClose, onEnrolled }) {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                 <div>
                   <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Student ID <span style={{ color:'var(--red)' }}>*</span></div>
-                  <input className="fm-input mono" value={form.studentCode} onChange={e => set('studentCode', e.target.value)} placeholder="e.g. S2025-001" />
+                  <input className="fm-input mono" value={form.studentCode} onChange={e => set('studentCode', e.target.value)} placeholder="e.g. 2024-12345" />
                 </div>
                 <div>
-                  <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Grade <span style={{ color:'var(--red)' }}>*</span></div>
+                  <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Year level <span style={{ color:'var(--red)' }}>*</span></div>
                   <select className="fm-input" value={form.gradeLabel} onChange={e => set('gradeLabel', e.target.value)}>
-                    <option value="">Select grade…</option>
+                    <option value="">Select year level…</option>
                     {grades.map(g => <option key={g.id} value={g.label}>{g.label}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Guardian email <span className="fm-muted">(optional)</span></div>
-                <input className="fm-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="guardian@example.com" />
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Program <span className="fm-muted">(optional)</span></div>
+                <select className="fm-input" value={form.programCode} onChange={e => set('programCode', e.target.value)}>
+                  <option value="">Select program…</option>
+                  {programs.map(p => <option key={p.id} value={p.code ?? p.label}>{p.code ?? p.label}{p.name && p.name !== p.code ? ` — ${p.name}` : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:11.5, color:'var(--fg-3)', marginBottom:5 }}>Personal email <span className="fm-muted">(optional)</span></div>
+                <input className="fm-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="student@example.com" />
               </div>
             </div>
           </div>
@@ -167,7 +175,7 @@ function EnrollDialog({ open, grades, onClose, onEnrolled }) {
 
 // ── ImportDialog ──────────────────────────────────────────────────────────────
 
-function ImportDialog({ open, grades, onClose, onImported }) {
+function ImportDialog({ open, grades, programs = [], onClose, onImported }) {
   const [step,       setStep]       = React.useState(1)
   const [rows,       setRows]       = React.useState([])
   const [importing,  setImporting]  = React.useState(false)
@@ -203,7 +211,7 @@ function ImportDialog({ open, grades, onClose, onImported }) {
   }
 
   const downloadTemplate = () => {
-    const csv = 'firstName,lastName,studentCode,gradeLabel,email\nJuan,Dela Cruz,S2025-001,10A,guardian@example.com\nMaria,Santos,S2025-002,11B,'
+    const csv = 'firstName,lastName,studentCode,gradeLabel,programCode,email\nJuan,Dela Cruz,2024-00001,1st Year,BSCS,juan@example.com\nMaria,Santos,2024-00002,2nd Year,BSIT,'
     const blob = new Blob([csv], { type: 'text/csv' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'frbams-import-template.csv'; a.click()
   }
@@ -246,8 +254,8 @@ function ImportDialog({ open, grades, onClose, onImported }) {
               <div style={{ padding:'12px 16px', background:'var(--card)', borderRadius:8, border:'1px solid var(--line)', fontSize:12.5 }}>
                 <div style={{ fontWeight:600, marginBottom:8 }}>Required columns</div>
                 <div className="mono" style={{ fontSize:11.5, color:'var(--fg-2)', lineHeight:2 }}>
-                  firstName · lastName · studentCode · gradeLabel<br />
-                  <span style={{ color:'var(--fg-3)' }}>Optional: email (guardian)</span>
+                  firstName · lastName · studentCode · gradeLabel · programCode<br />
+                  <span style={{ color:'var(--fg-3)' }}>Optional: programCode · email</span>
                 </div>
               </div>
               <div
@@ -295,7 +303,8 @@ function ImportDialog({ open, grades, onClose, onImported }) {
                       <th>First name</th>
                       <th>Last name</th>
                       <th>Student ID</th>
-                      <th>Grade</th>
+                      <th>Year Level</th>
+                      <th>Program</th>
                       <th>Email</th>
                       <th style={{ width:34 }}></th>
                     </tr>
@@ -309,7 +318,8 @@ function ImportDialog({ open, grades, onClose, onImported }) {
                           <td>{r.firstName || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
                           <td>{r.lastName  || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
                           <td className="mono">{r.studentCode || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
-                          <td className="mono">{r.gradeLabel  || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
+                          <td className="mono">{r.gradeLabel   || <span style={{ color:'var(--red)', fontSize:11 }}>missing</span>}</td>
+                          <td className="mono" style={{ color:'var(--fg-3)' }}>{r.programCode || '—'}</td>
                           <td className="mono" style={{ color:'var(--fg-3)' }}>{r.email || '—'}</td>
                           <td>
                             <button
@@ -350,7 +360,8 @@ function ImportDialog({ open, grades, onClose, onImported }) {
                   <thead>
                     <tr>
                       <th style={{ paddingLeft:16 }}>Student</th>
-                      <th>Grade</th>
+                      <th>Year Level</th>
+                      <th>Program</th>
                       <th>One-time password</th>
                       <th>Status</th>
                     </tr>
@@ -363,6 +374,7 @@ function ImportDialog({ open, grades, onClose, onImported }) {
                           <div className="mono fm-muted" style={{ fontSize:11 }}>{r.studentCode}</div>
                         </td>
                         <td className="mono">{r.grade || '—'}</td>
+                        <td className="mono" style={{ color:'var(--fg-3)' }}>{r.program || r.programCode || '—'}</td>
                         <td>
                           {r.ok ? (
                             <div style={{ display:'flex', alignItems:'center', gap:8 }}>

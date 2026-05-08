@@ -68,9 +68,10 @@ function StudentDrawer({ studentDbId, onClose }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.2 }}>{s.name}</div>
-                  <div style={{ display: 'flex', gap: 7, marginTop: 5, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 7, marginTop: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="mono fm-muted" style={{ fontSize: 11.5 }}>{s.studentCode}</span>
-                    <span className="fm-pill" style={{ fontSize: 10, padding: '1px 7px' }}>{s.grade}</span>
+                    {s.grade && <span className="fm-pill" style={{ fontSize: 10, padding: '1px 7px' }}>{s.grade}</span>}
+                    {s.program && <span className="fm-pill" style={{ fontSize: 10, padding: '1px 7px', background: 'var(--line-2)', color: 'var(--fg-2)' }}>{s.program}</span>}
                   </div>
                 </div>
               </div>
@@ -107,9 +108,15 @@ function StudentDrawer({ studentDbId, onClose }) {
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
-                    <span className="fm-muted">Grade</span>
-                    <span style={{ fontWeight: 500 }}>{s.grade}</span>
+                    <span className="fm-muted">Year level</span>
+                    <span style={{ fontWeight: 500 }}>{s.grade ?? '—'}</span>
                   </div>
+                  {s.program && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
+                      <span className="fm-muted">Program</span>
+                      <span className="mono" style={{ fontSize: 11.5 }}>{s.program}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
                     <span className="fm-muted">Enrolled</span>
                     <span className="mono" style={{ fontSize: 11.5 }}>
@@ -157,29 +164,33 @@ function StudentDrawer({ studentDbId, onClose }) {
 export function StudentList() {
   const [urlParams]   = useSearchParams()
 
-  const [search,       setSearch]       = useState(() => urlParams.get('q') ?? '')
-  const [gradeFilter,  setGradeFilter]  = useState('all')
-  const [grades,       setGrades]       = useState([])
-  const [students,     setStudents]     = useState([])
-  const [total,        setTotal]        = useState(0)
-  const [pages,        setPages]        = useState(1)
-  const [page,         setPage]         = useState(1)
-  const [loading,      setLoading]      = useState(false)
-  const [selected,     setSelected]     = useState(new Set())
-  const [drawerDbId,   setDrawerDbId]   = useState(null)
-  const [enrollOpen,   setEnrollOpen]   = useState(false)
-  const [importOpen,   setImportOpen]   = useState(false)
-  const [refreshKey,   setRefreshKey]   = useState(0)
+  const [search,         setSearch]         = useState(() => urlParams.get('q') ?? '')
+  const [yearFilter,     setYearFilter]     = useState('all')
+  const [programFilter,  setProgramFilter]  = useState('all')
+  const [grades,         setGrades]         = useState([])
+  const [programs,       setPrograms]       = useState([])
+  const [students,       setStudents]       = useState([])
+  const [total,          setTotal]          = useState(0)
+  const [pages,          setPages]          = useState(1)
+  const [page,           setPage]           = useState(1)
+  const [loading,        setLoading]        = useState(false)
+  const [selected,       setSelected]       = useState(new Set())
+  const [drawerDbId,     setDrawerDbId]     = useState(null)
+  const [enrollOpen,     setEnrollOpen]     = useState(false)
+  const [importOpen,     setImportOpen]     = useState(false)
+  const [refreshKey,     setRefreshKey]     = useState(0)
 
   useEffect(() => {
     api.grades().then(setGrades).catch(() => {})
+    api.programs().then(res => setPrograms(res.data ?? res ?? [])).catch(() => {})
   }, [])
 
   useEffect(() => {
     setLoading(true)
     const params = { page }
-    if (search)                              params.search = search
-    if (gradeFilter && gradeFilter !== 'all') params.grade  = gradeFilter
+    if (search)                                params.search   = search
+    if (yearFilter    && yearFilter    !== 'all') params.grade  = yearFilter
+    if (programFilter && programFilter !== 'all') params.program = programFilter
 
     const timer = setTimeout(() => {
       api.students(params)
@@ -193,17 +204,18 @@ export function StudentList() {
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [search, gradeFilter, page, refreshKey])
+  }, [search, yearFilter, programFilter, page, refreshKey])
 
   const rows = students.map(s => ({
-    dbId:  s.id,
-    id:    s.studentCode,
-    name:  s.name,
-    first: s.firstName,
-    last:  s.lastName,
-    grade: s.grade,
-    hue:   hue(s.studentCode),
-    rate:  (s.attendanceRate ?? 0) / 100,
+    dbId:      s.id,
+    id:        s.studentCode,
+    name:      s.name,
+    first:     s.firstName,
+    last:      s.lastName,
+    yearLevel: s.grade,
+    program:   s.programCode ?? s.program ?? '',
+    hue:       hue(s.studentCode),
+    rate:      (s.attendanceRate ?? 0) / 100,
   }))
 
   const allSelected = rows.length > 0 && rows.every(r => selected.has(r.dbId))
@@ -217,12 +229,13 @@ export function StudentList() {
     })
   }
 
-  const onSearchChange = (v) => { setSearch(v); setPage(1); setSelected(new Set()) }
-  const onGradeChange  = (v) => { setGradeFilter(v); setPage(1); setSelected(new Set()) }
+  const onSearchChange  = (v) => { setSearch(v);  setPage(1); setSelected(new Set()) }
+  const onYearChange    = (v) => { setYearFilter(v);    setPage(1); setSelected(new Set()) }
+  const onProgramChange = (v) => { setProgramFilter(v); setPage(1); setSelected(new Set()) }
 
   const exportCSV = () => {
-    const header = 'Name,ID,Grade,Attendance %'
-    const lines  = rows.map(r => [`"${r.name ?? ''}"`, r.id ?? '', r.grade ?? '', Math.round(r.rate * 100) + '%'].join(','))
+    const header = 'Name,ID,Year Level,Program,Attendance %'
+    const lines  = rows.map(r => [`"${r.name ?? ''}"`, r.id ?? '', r.yearLevel ?? '', r.program ?? '', Math.round(r.rate * 100) + '%'].join(','))
     const blob   = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
     const a      = document.createElement('a')
     a.href       = URL.createObjectURL(blob)
@@ -238,7 +251,7 @@ export function StudentList() {
         <div className="fm-content">
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
             <div>
-              <div className="fm-eyebrow" style={{ marginBottom: 8 }}>Roster</div>
+              <div className="fm-eyebrow" style={{ marginBottom: 8 }}>College Registry</div>
               <h1 className="fm-h1">Students</h1>
               <div className="fm-muted" style={{ marginTop: 6, fontSize: 14 }}>{total} enrolled</div>
             </div>
@@ -249,8 +262,8 @@ export function StudentList() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-            <div className="fm-search" style={{ flex: 1, maxWidth: 320 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="fm-search" style={{ flex: 1, minWidth: 200, maxWidth: 320 }}>
               <I.Search size={14} />
               <input
                 style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--fg)', width: '100%' }}
@@ -259,9 +272,13 @@ export function StudentList() {
                 onChange={e => onSearchChange(e.target.value)}
               />
             </div>
-            <select className="fm-input" style={{ width: 130 }} value={gradeFilter} onChange={e => onGradeChange(e.target.value)}>
-              <option value="all">All grades</option>
+            <select className="fm-input" style={{ width: 140 }} value={yearFilter} onChange={e => onYearChange(e.target.value)}>
+              <option value="all">All year levels</option>
               {grades.map(g => <option key={g.id} value={g.label}>{g.label}</option>)}
+            </select>
+            <select className="fm-input" style={{ width: 160 }} value={programFilter} onChange={e => onProgramChange(e.target.value)}>
+              <option value="all">All programs</option>
+              {programs.map(p => <option key={p.id} value={p.code ?? p.label}>{p.code ?? p.label}</option>)}
             </select>
             {selected.size > 0 && (
               <div className="fm-muted" style={{ fontSize: 12.5 }}>{selected.size} selected</div>
@@ -276,7 +293,8 @@ export function StudentList() {
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} />
                   </th>
                   <th>Student</th>
-                  <th>Grade</th>
+                  <th>Year Level</th>
+                  <th>Program</th>
                   <th>Attendance</th>
                   <th style={{ width: 140 }}>Rate</th>
                   <th>Status</th>
@@ -286,7 +304,7 @@ export function StudentList() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--fg-3)' }}>
                         <div className="fm-spinner sm" />
                         <span style={{ fontSize: 13 }}>Loading students…</span>
@@ -295,7 +313,7 @@ export function StudentList() {
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="fm-empty">
                         <div className="fm-empty-icon">
                           <I.Users size={22} />
@@ -341,7 +359,12 @@ export function StudentList() {
                           </div>
                         </div>
                       </td>
-                      <td className="mono fm-muted">{s.grade}</td>
+                      <td>
+                        {s.yearLevel
+                          ? <span className="fm-pill" style={{ fontSize: 10, padding: '2px 8px' }}>{s.yearLevel}</span>
+                          : <span className="fm-muted">—</span>}
+                      </td>
+                      <td className="mono" style={{ fontSize: 12 }}>{s.program || <span className="fm-muted">—</span>}</td>
                       <td className="mono">{pct}%</td>
                       <td>
                         <div style={{ height: 6, background: 'var(--line-2)', borderRadius: 99, overflow: 'hidden', width: 120 }}>
@@ -428,12 +451,14 @@ export function StudentList() {
       <EnrollDialog
         open={enrollOpen}
         grades={grades}
+        programs={programs}
         onClose={() => setEnrollOpen(false)}
         onEnrolled={() => setRefreshKey(k => k + 1)}
       />
       <ImportDialog
         open={importOpen}
         grades={grades}
+        programs={programs}
         onClose={() => setImportOpen(false)}
         onImported={() => setRefreshKey(k => k + 1)}
       />
