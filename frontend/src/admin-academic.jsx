@@ -148,9 +148,24 @@ export function Programs() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>Loading...</td></tr>
+                  <tr>
+                    <td colSpan={5}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--fg-3)' }}>
+                        <div className="fm-spinner sm" />
+                        <span style={{ fontSize: 13 }}>Loading…</span>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>No programs yet. Add one above.</td></tr>
+                  <tr>
+                    <td colSpan={5}>
+                      <div className="fm-empty">
+                        <div className="fm-empty-icon"><I.Book size={22} /></div>
+                        <div className="fm-empty-title">No programs yet</div>
+                        <div className="fm-empty-sub">Add your first course or program using the button above.</div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.map(r => (
                   <tr key={r.id}>
                     <td style={{ paddingLeft: 20 }}>
@@ -289,9 +304,24 @@ export function Curricula() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>Loading...</td></tr>
+                  <tr>
+                    <td colSpan={5}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--fg-3)' }}>
+                        <div className="fm-spinner sm" />
+                        <span style={{ fontSize: 13 }}>Loading…</span>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>No curricula yet. Add one above.</td></tr>
+                  <tr>
+                    <td colSpan={5}>
+                      <div className="fm-empty">
+                        <div className="fm-empty-icon"><I.Layers size={22} /></div>
+                        <div className="fm-empty-title">No curricula yet</div>
+                        <div className="fm-empty-sub">Add your first curriculum using the button above.</div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.map(r => (
                   <tr key={r.id}>
                     <td style={{ paddingLeft: 20 }}>
@@ -444,9 +474,24 @@ export function Sections() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>Loading...</td></tr>
+                  <tr>
+                    <td colSpan={7}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--fg-3)' }}>
+                        <div className="fm-spinner sm" />
+                        <span style={{ fontSize: 13 }}>Loading…</span>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>No sections yet. Add one above.</td></tr>
+                  <tr>
+                    <td colSpan={7}>
+                      <div className="fm-empty">
+                        <div className="fm-empty-icon"><I.Grid4 size={22} /></div>
+                        <div className="fm-empty-title">No sections yet</div>
+                        <div className="fm-empty-sub">Add your first section using the button above.</div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.map(r => (
                   <tr key={r.id}>
                     <td style={{ paddingLeft: 20, fontWeight: 600 }}>{r.name}</td>

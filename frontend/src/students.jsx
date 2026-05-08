@@ -285,9 +285,32 @@ export function StudentList() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>Loading…</td></tr>
+                  <tr>
+                    <td colSpan={7}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--fg-3)' }}>
+                        <div className="fm-spinner sm" />
+                        <span style={{ fontSize: 13 }}>Loading students…</span>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--fg-3)' }}>No students found.</td></tr>
+                  <tr>
+                    <td colSpan={7}>
+                      <div className="fm-empty">
+                        <div className="fm-empty-icon">
+                          <I.Users size={22} />
+                        </div>
+                        <div className="fm-empty-title">
+                          {search ? 'No students found' : 'No students enrolled yet'}
+                        </div>
+                        <div className="fm-empty-sub">
+                          {search
+                            ? `No results for "${search}". Try a different name or ID.`
+                            : 'Enroll your first student using the button above, or import from a CSV file.'}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.map(s => {
                   const pct        = Math.round(s.rate * 100)
                   const statusCls  = pct >= 90 ? 'ok' : pct >= 75 ? 'late' : 'ab'
@@ -344,22 +367,56 @@ export function StudentList() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 12 }}>
-            <span className="fm-muted mono">Showing {rows.length} of {total}</span>
+            <span className="fm-muted mono">
+              {total > 0
+                ? `Showing ${rows.length} of ${total} student${total !== 1 ? 's' : ''}`
+                : 'No students'}
+            </span>
             {pages > 1 && (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 <button
                   className="fm-btn"
-                  style={{ padding: '5px 12px', fontSize: 12 }}
+                  style={{ padding: '5px 10px', fontSize: 12 }}
                   disabled={page <= 1}
                   onClick={() => setPage(p => p - 1)}
-                >← Prev</button>
-                <span className="mono fm-muted" style={{ fontSize: 11.5 }}>Page {page} of {pages}</span>
+                >
+                  <I.Arrow size={12} style={{ transform: 'rotate(180deg)' }} />
+                  Prev
+                </button>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 2,
+                  padding: '5px 10px',
+                  background: 'var(--line-2)', borderRadius: 'var(--r-sm)',
+                }}>
+                  {Array.from({ length: Math.min(pages, 7) }, (_, i) => {
+                    const p = i + 1
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        style={{
+                          width: 24, height: 24,
+                          borderRadius: 6,
+                          border: 'none',
+                          background: page === p ? 'var(--accent)' : 'transparent',
+                          color: page === p ? 'var(--accent-ink)' : 'var(--fg-3)',
+                          fontFamily: 'var(--mono)', fontSize: 11, fontWeight: page === p ? 700 : 400,
+                          cursor: 'pointer',
+                        }}
+                      >{p}</button>
+                    )
+                  })}
+                  {pages > 7 && <span className="fm-muted" style={{ fontSize: 11, padding: '0 4px' }}>…{pages}</span>}
+                </div>
                 <button
                   className="fm-btn"
-                  style={{ padding: '5px 12px', fontSize: 12 }}
+                  style={{ padding: '5px 10px', fontSize: 12 }}
                   disabled={page >= pages}
                   onClick={() => setPage(p => p + 1)}
-                >Next →</button>
+                >
+                  Next
+                  <I.Arrow size={12} />
+                </button>
               </div>
             )}
           </div>

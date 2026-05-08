@@ -462,18 +462,35 @@ function Reports() {
               <h2 className="fm-h2">Daily trend</h2>
             </div>
             {bars.length === 0 ? (
-              <div style={{height:200, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--fg-3)', fontSize:13}}>
-                No data for this month.
+              <div style={{height:200, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:'var(--fg-3)'}}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  background: 'var(--line-2)',
+                  display: 'grid', placeItems: 'center', color: 'var(--fg-4)',
+                }}>
+                  <I.Chart size={22} />
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>No data yet</div>
+                <div style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>No attendance records for {month}.</div>
               </div>
             ) : (
-              <div style={{height:200, display:"flex", alignItems:"flex-end", gap:3}}>
+              <div style={{height:200, display:"flex", alignItems:"flex-end", gap:3, paddingTop: 16}}>
                 {bars.map((b, i) => (
-                  <div key={i} style={{
-                    flex:1,
-                    height: (b.v || 2) + "%",
-                    background: b.v < 80 ? "var(--amber)" : "var(--accent)",
-                    borderRadius:"3px 3px 0 0",
-                  }} title={`Day ${b.d}: ${b.v}%`}/>
+                  <div
+                    key={i}
+                    title={`Day ${b.d}: ${b.v}%`}
+                    style={{
+                      flex:1, minHeight: 3,
+                      height: `${Math.max(b.v || 1, 1)}%`,
+                      background: b.v < 80
+                        ? 'var(--amber)'
+                        : 'linear-gradient(180deg, #d9b230 0%, var(--accent) 100%)',
+                      borderRadius:"4px 4px 0 0",
+                      opacity: b.v > 0 ? 1 : 0.3,
+                      transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                      cursor: 'default',
+                    }}
+                  />
                 ))}
               </div>
             )}
@@ -499,7 +516,15 @@ function Reports() {
               </thead>
               <tbody>
                 {courses.length === 0 ? (
-                  <tr><td colSpan={6} style={{padding:32, textAlign:'center', color:'var(--fg-3)'}}>No course data.</td></tr>
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="fm-empty">
+                        <div className="fm-empty-icon"><I.Chart size={20} /></div>
+                        <div className="fm-empty-title">No course data</div>
+                        <div className="fm-empty-sub">No course-level attendance data for this month.</div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : courses.map((c) => (
                   <tr key={c.name}>
                     <td style={{paddingLeft:20, fontWeight:500}}>{c.name}</td>
@@ -789,9 +814,21 @@ function SettingsCameras() {
     <div className="fm-card">
       <h3 className="fm-h3" style={{ marginBottom: 14 }}>Camera network</h3>
       {cameras === null ? (
-        <div className="fm-muted" style={{ fontSize: 13 }}>Loading…</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', color: 'var(--fg-3)' }}>
+          <div className="fm-spinner sm" />
+          <span style={{ fontSize: 13 }}>Loading cameras…</span>
+        </div>
       ) : cameras.length === 0 ? (
-        <div className="fm-muted" style={{ fontSize: 13 }}>No cameras configured.</div>
+        <div style={{ padding: '20px 0', textAlign: 'center' }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, background: 'var(--line-2)',
+            display: 'grid', placeItems: 'center', color: 'var(--fg-4)', margin: '0 auto 10px',
+          }}>
+            <I.Camera size={20} />
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>No cameras configured</div>
+          <div className="fm-muted" style={{ fontSize: 12 }}>Connect camera devices to start monitoring entry points.</div>
+        </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           {cameras.map(c => {
@@ -799,19 +836,28 @@ function SettingsCameras() {
             const quality  = c.quality != null ? `${Math.round(c.quality * 100)}%` : '—'
             return (
               <div key={c.id} style={{
-                padding: 12, border: '1px solid var(--line)', borderRadius: 8,
+                padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 10,
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: isOnline ? 'var(--card)' : 'color-mix(in srgb, var(--amber) 4%, var(--card))',
               }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{c.label}</div>
-                  <div className="mono fm-muted" style={{ fontSize: 11, marginTop: 2 }}>
-                    {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
-                    {c.room ? ` · ${c.room}` : ''}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: isOnline ? 'var(--green)' : 'var(--amber)',
+                    flexShrink: 0,
+                    boxShadow: isOnline ? '0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent)' : 'none',
+                  }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
+                    <div className="mono fm-muted" style={{ fontSize: 11, marginTop: 2 }}>
+                      {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
+                      {c.room ? ` · ${c.room}` : ''}
+                    </div>
                   </div>
                 </div>
                 <div className="mono" style={{
-                  fontSize: 13,
-                  color: isOnline ? 'oklch(0.5 0.16 145)' : 'var(--amber)',
+                  fontSize: 13, fontWeight: 600,
+                  color: isOnline ? 'var(--green)' : 'var(--amber)',
                 }}>{quality}</div>
               </div>
             )
@@ -1387,14 +1433,20 @@ function SettingsRoles() {
 }
 
 const SETTINGS_TABS = [
-  { id: 'branding',      label: 'School Branding' },
-  { id: 'appearance',    label: 'Appearance' },
-  { id: 'recognition',   label: 'Recognition Engine' },
-  { id: 'cameras',       label: 'Camera Network' },
-  { id: 'notifications', label: 'Notification Rules' },
-  { id: 'privacy',       label: 'Privacy & Retention' },
-  { id: 'integrations',  label: 'Integrations' },
-  { id: 'roles',         label: 'Roles & Access' },
+  { section: 'School',  tabs: [
+    { id: 'branding',   label: 'School Branding',    icon: 'Sparkle' },
+    { id: 'appearance', label: 'Appearance',          icon: 'Sun' },
+  ]},
+  { section: 'System',  tabs: [
+    { id: 'recognition',   label: 'Recognition Engine', icon: 'Face' },
+    { id: 'cameras',       label: 'Camera Network',     icon: 'Camera' },
+    { id: 'notifications', label: 'Notification Rules', icon: 'Bell' },
+  ]},
+  { section: 'Admin',   tabs: [
+    { id: 'privacy',       label: 'Privacy & Retention', icon: 'Lock' },
+    { id: 'integrations',  label: 'Integrations',        icon: 'Wifi' },
+    { id: 'roles',         label: 'Roles & Access',      icon: 'Users' },
+  ]},
 ]
 
 function Settings() {
@@ -1406,24 +1458,37 @@ function Settings() {
       <div className="fm-main">
         <TopBar />
         <div className="fm-content">
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 28 }}>
             <div className="fm-eyebrow" style={{ marginBottom: 8 }}>Administration</div>
             <h1 className="fm-h1">System Settings</h1>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24, alignItems: 'start' }}>
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {SETTINGS_TABS.map(({ id, label }) => (
-                <button key={id} onClick={() => setTab(id)} style={{
-                  padding: '8px 12px', borderRadius: 7, cursor: 'pointer',
-                  background: tab === id ? 'var(--accent-soft)' : 'transparent',
-                  color: tab === id ? 'var(--accent)' : 'var(--fg-3)',
-                  fontWeight: tab === id ? 600 : 400,
-                  fontSize: 13, textAlign: 'left', border: 'none',
-                  transition: 'background 0.12s, color 0.12s',
-                }}>{label}</button>
+          <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 24, alignItems: 'start' }}>
+            {/* Settings sidebar nav */}
+            <div style={{
+              background: 'var(--card)', border: '1px solid var(--line)',
+              borderRadius: 'var(--r-md)', padding: '10px 8px',
+              boxShadow: 'var(--shadow-sm)',
+              position: 'sticky', top: 16,
+            }}>
+              {SETTINGS_TABS.map(({ section, tabs }) => (
+                <div key={section}>
+                  <p className="fm-settings-section-label">{section}</p>
+                  <nav className="fm-settings-nav">
+                    {tabs.map(({ id, label, icon }) => (
+                      <button
+                        key={id}
+                        className={`fm-settings-nav-btn${tab === id ? ' active' : ''}`}
+                        onClick={() => setTab(id)}
+                      >
+                        {I[icon] ? React.createElement(I[icon], { size: 14 }) : null}
+                        {label}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
               ))}
-            </nav>
+            </div>
 
             <div>
               {tab === 'branding'      && <SettingsBranding />}
@@ -1501,31 +1566,51 @@ function LeaveRequests() {
 
           <div style={{display:"flex", flexDirection:"column", gap:12}}>
             {items.length === 0 ? (
-              <div className="fm-card" style={{textAlign:'center', color:'var(--fg-3)', padding:40}}>
-                No {tab} leave requests.
+              <div className="fm-card">
+                <div className="fm-empty">
+                  <div className="fm-empty-icon">
+                    <I.Leave size={22} />
+                  </div>
+                  <div className="fm-empty-title">No {tab} requests</div>
+                  <div className="fm-empty-sub">
+                    {tab === 'pending'
+                      ? 'All leave requests have been reviewed.'
+                      : `No ${tab} leave requests to show.`}
+                  </div>
+                </div>
               </div>
             ) : items.map((l) => (
-              <div key={l.id} className="fm-card" style={{display:"grid", gridTemplateColumns:"1fr auto", gap:18, alignItems:"center"}}>
+              <div key={l.id} className="fm-card" style={{
+                display:"grid", gridTemplateColumns:"1fr auto", gap:18, alignItems:"center",
+                transition: 'box-shadow 0.18s ease, transform 0.18s ease',
+              }}>
                 <div style={{display:"flex", gap:14, alignItems:"center"}}>
-                  <div className="fm-avatar lg" style={{background:`oklch(0.86 0.14 ${l.hue})`}}>
+                  <div className="fm-avatar lg" style={{
+                    background:`oklch(0.86 0.14 ${l.hue})`,
+                    color: '#000', fontWeight: 700,
+                  }}>
                     {(l.name ?? '').split(" ").map(s => s[0]).join("").slice(0, 2)}
                   </div>
                   <div>
-                    <div style={{display:"flex", gap:10, alignItems:"baseline"}}>
-                      <div style={{fontSize:15, fontWeight:600}}>{l.name}</div>
-                      <span className="mono fm-muted" style={{fontSize:11.5}}>{l.grade}</span>
-                      <span className={`fm-pill ${l.status === "approved" ? "ok" : ""}`}>{l.status}</span>
+                    <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
+                      <div style={{fontSize:15, fontWeight:700}}>{l.name}</div>
+                      <span className="mono fm-muted" style={{fontSize:11.5, background:'var(--line-2)', padding:'2px 8px', borderRadius:999}}>{l.grade}</span>
+                      <span className={`fm-pill dot ${l.status === "approved" ? "ok" : l.status === "declined" ? "ab" : "late"}`}>{l.status}</span>
                     </div>
-                    <div style={{fontSize:13, marginTop:4}}>{l.reason}</div>
-                    <div className="mono fm-muted" style={{fontSize:11.5, marginTop:2}}>{l.date}</div>
+                    <div style={{fontSize:13.5, marginTop:5, lineHeight:1.45, color:'var(--fg-2)'}}>{l.reason}</div>
+                    <div className="mono fm-muted" style={{fontSize:11, marginTop:4, display:'flex', alignItems:'center', gap:6}}>
+                      <I.Cal size={11} />
+                      {l.date}
+                    </div>
                   </div>
                 </div>
                 {l.status === "pending" ? (
-                  <div style={{display:"flex", gap:8}}>
+                  <div style={{display:"flex", gap:8, flexShrink:0}}>
                     <button
                       className="fm-btn"
                       disabled={acting === l.id}
                       onClick={() => act(l.id, 'decline')}
+                      style={{ color: 'var(--red)', borderColor: 'color-mix(in srgb, var(--red) 30%, transparent)' }}
                     ><I.X size={13}/> Decline</button>
                     <button
                       className="fm-btn primary"
@@ -1534,9 +1619,15 @@ function LeaveRequests() {
                     ><I.Check size={13}/> Approve</button>
                   </div>
                 ) : (
-                  <span className="fm-muted" style={{fontSize:12}}>
-                    {l.status === 'approved' ? 'Approved' : 'Declined'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: l.status === 'approved' ? 'var(--green)' : 'var(--red)',
+                    }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: l.status === 'approved' ? 'var(--green)' : 'var(--red)' }}>
+                      {l.status === 'approved' ? 'Approved' : 'Declined'}
+                    </span>
+                  </div>
                 )}
               </div>
             ))}

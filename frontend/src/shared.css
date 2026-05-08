@@ -1,5 +1,8 @@
 /* shared.css — FRBAMS · University of the Visayas Edition */
 
+/* ── Google Fonts fallback (in case index.html link doesn't resolve) ──────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 /* ── Default tokens (UV Classic) ─────────────────────────────────────────── */
 :root {
   /* Surface */
@@ -320,10 +323,12 @@ svg, svg *, input, select, textarea, button { transition: none; }
   flex: 1;
   padding: var(--pad) 28px 36px;
   overflow: auto;
+  overflow-x: hidden;
   /* Refined micro-dot texture — just enough grain to ground the cards */
   background-image: radial-gradient(circle, var(--line-2) 0.8px, transparent 0.8px);
   background-size: 26px 26px;
   background-attachment: local;
+  scroll-behavior: smooth;
 }
 
 /* ── Typography ──────────────────────────────────────────────────────────── */
@@ -501,6 +506,7 @@ svg, svg *, input, select, textarea, button { transition: none; }
   padding: 11px 14px; border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 70%, var(--card) 30%);
   white-space: nowrap;
+  position: sticky; top: 0; z-index: 1;
   /* Subtle inner highlight under header */
   box-shadow: inset 0 -1px 0 var(--line);
 }
@@ -515,9 +521,23 @@ svg, svg *, input, select, textarea, button { transition: none; }
 .fm-table tbody tr:hover td {
   background: color-mix(in srgb, var(--accent-soft) 32%, transparent);
 }
+/* Clickable rows get pointer cursor */
+.fm-table tbody tr[style*="pointer"] { cursor: pointer; }
 /* Selected / highlighted row */
 .fm-table tbody tr.selected td {
   background: var(--accent-soft);
+}
+
+/* ── Table overflow wrapper ───────────────────────────────────────────────── */
+.fm-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 768px) {
+  .fm-table th:nth-child(n+5),
+  .fm-table td:nth-child(n+5) {
+    display: none;
+  }
 }
 
 /* ── Bars ────────────────────────────────────────────────────────────────── */
@@ -872,4 +892,269 @@ svg, svg *, input, select, textarea, button { transition: none; }
   transition: color 0.12s ease !important;
 }
 .fm-section-link:hover { color: var(--accent); }
+
+/* ── Skeleton loader ─────────────────────────────────────────────────────── */
+@keyframes fm-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.fm-skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    90deg,
+    var(--line-2) 0%,
+    var(--line)   40%,
+    var(--line-2) 80%
+  );
+  background-size: 800px 100%;
+  animation: fm-shimmer 1.4s ease-in-out infinite;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.fm-empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 56px 24px;
+  text-align: center; gap: 12px;
+}
+.fm-empty-icon {
+  width: 52px; height: 52px; border-radius: 16px;
+  background: var(--line-2);
+  display: grid; place-items: center;
+  color: var(--fg-4);
+  margin-bottom: 4px;
+}
+.fm-empty-title {
+  font-size: 14.5px; font-weight: 700; color: var(--fg);
+  letter-spacing: -0.015em;
+}
+.fm-empty-sub {
+  font-size: 13px; color: var(--fg-3); max-width: 280px; line-height: 1.55;
+}
+
+/* ── Stat card accent top strip ──────────────────────────────────────────── */
+.fm-card.stat-present { border-top: 3px solid var(--accent); }
+.fm-card.stat-late    { border-top: 3px solid var(--amber); }
+.fm-card.stat-absent  { border-top: 3px solid var(--red); }
+.fm-card.stat-total   { border-top: 3px solid var(--blue); }
+
+/* ── Page header banner ──────────────────────────────────────────────────── */
+.fm-page-header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.fm-page-header-left { min-width: 0; }
+.fm-page-header-right {
+  display: flex; gap: 8px; align-items: center;
+  flex-shrink: 0; padding-top: 4px;
+}
+
+/* ── Inline badge on bell icon ───────────────────────────────────────────── */
+.fm-bell-wrap { position: relative; display: inline-flex; }
+.fm-bell-badge {
+  position: absolute; top: 2px; right: 2px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red);
+  border: 1.5px solid var(--card);
+  pointer-events: none;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+.fm-tip { position: relative; display: inline-flex; }
+.fm-tip::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: var(--fg); color: var(--card);
+  font-size: 11px; font-weight: 500; white-space: nowrap;
+  padding: 4px 9px; border-radius: 6px;
+  pointer-events: none; opacity: 0;
+  transition: opacity 0.15s ease;
+  letter-spacing: 0;
+}
+.fm-tip:hover::after { opacity: 1; }
+
+/* ── Focus-visible ring ──────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* ── Checkbox custom ─────────────────────────────────────────────────────── */
+input[type="checkbox"] {
+  width: 15px; height: 15px;
+  accent-color: var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ── Select refinement ───────────────────────────────────────────────────── */
+select.fm-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239498B5' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+/* ── Breadcrumb chip ─────────────────────────────────────────────────────── */
+.fm-topbar-crumb-chip {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 12px; font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ── Status pill dot pulse for live items ────────────────────────────────── */
+@keyframes fm-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 40%, transparent); }
+  50%       { box-shadow: 0 0 0 4px transparent; }
+}
+.fm-live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  animation: fm-live-pulse 2s ease-in-out infinite;
+}
+
+/* ── Sidebar mobile overlay ──────────────────────────────────────────────── */
+.fm-side-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 98;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(2px);
+}
+
+/* ── Mobile hamburger button ─────────────────────────────────────────────── */
+.fm-hamburger {
+  display: none;
+  flex-direction: column; justify-content: center; gap: 4.5px;
+  padding: 8px; border: none; background: none; cursor: pointer;
+  border-radius: var(--r-sm);
+  margin-right: 4px;
+  color: var(--fg-3);
+}
+.fm-hamburger:hover { background: var(--line-2); }
+.fm-hamburger span {
+  display: block; height: 1.5px; width: 18px;
+  background: currentColor; border-radius: 1px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+/* ── Loading spinner ─────────────────────────────────────────────────────── */
+@keyframes fm-spin {
+  to { transform: rotate(360deg); }
+}
+.fm-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fm-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.fm-spinner.sm { width: 14px; height: 14px; }
+.fm-spinner.lg { width: 32px; height: 32px; border-width: 3px; }
+
+/* ── Dot-dot-dot menu button ─────────────────────────────────────────────── */
+.fm-meatball {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: var(--r-sm);
+  cursor: pointer; font-size: 16px; line-height: 1;
+  color: var(--fg-3); letter-spacing: 0;
+  transition: background 0.12s, color 0.12s !important;
+  border: none; background: none;
+}
+.fm-meatball:hover {
+  background: var(--line-2);
+  color: var(--fg);
+}
+
+/* ── Settings sidebar nav ────────────────────────────────────────────────── */
+.fm-settings-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  position: sticky; top: 0;
+}
+.fm-settings-nav-btn {
+  padding: 9px 13px; border-radius: var(--r-sm);
+  cursor: pointer; text-align: left; border: none;
+  font-size: 13px; font-family: var(--body); font-weight: 500;
+  background: transparent; color: var(--fg-3);
+  transition: background 0.12s, color 0.12s !important;
+  display: flex; align-items: center; gap: 9px;
+  letter-spacing: -0.01em;
+}
+.fm-settings-nav-btn:hover {
+  background: var(--line-2); color: var(--fg);
+}
+.fm-settings-nav-btn.active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent); font-weight: 600;
+}
+.fm-settings-section-label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--fg-4); font-weight: 700;
+  padding: 14px 13px 4px; margin: 0;
+}
+
+/* ── Form field label ────────────────────────────────────────────────────── */
+.fm-field-label {
+  display: block;
+  font-size: 11.5px; font-weight: 600; color: var(--fg-2);
+  letter-spacing: 0.01em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.fm-field-hint {
+  font-size: 11px; color: var(--fg-4);
+  margin-top: 5px; line-height: 1.4;
+}
+
+/* ── Responsive breakpoints ──────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .fm-side {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 99;
+    transform: translateX(-100%);
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1) !important;
+    box-shadow: var(--shadow-xl);
+  }
+  .fm-side.open {
+    transform: translateX(0);
+  }
+  .fm-side-overlay { display: block; }
+  .fm-main { width: 100%; }
+  .fm-hamburger { display: flex; }
+  .fm-search { width: 200px !important; }
+}
+
+@media (max-width: 640px) {
+  .fm-content { padding: 16px 16px 32px; }
+  .fm-topbar  { padding: 0 16px; }
+  .fm-search  { display: none !important; }
+  .fm-page-header { flex-direction: column; }
+  .fm-page-header-right { padding-top: 0; }
+
+  /* Stack stats to 2 cols on mobile */
+  .fm-stats-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .fm-stats-grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
+  .fm-charts-row   { grid-template-columns: 1fr !important; }
+  .fm-bottom-row   { grid-template-columns: 1fr !important; }
+
+  .fm-login-hero { display: none; }
+  .fm-login-form-panel { padding: 24px 16px; }
+  .fm-login-form-card { padding: 28px 20px 24px; border-radius: var(--r-lg); }
+
+  .fm-h1 { font-size: 24px; }
+}
+
+/* ── Print styles ────────────────────────────────────────────────────────── */
+@media print {
+  .fm-side, .fm-topbar { display: none; }
+  .fm-main { width: 100% !important; }
+  .fm-content { padding: 0; overflow: visible; }
+}
 

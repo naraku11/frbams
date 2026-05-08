@@ -58,22 +58,40 @@ const STAT_META = {
     icon: 'Check',
     iconBg: 'color-mix(in srgb, var(--accent) 14%, transparent)',
     iconColor: 'var(--accent)',
+    cardClass: 'stat-present',
   },
   late: {
     icon: 'Bell',
     iconBg: 'var(--amber-soft)',
     iconColor: 'var(--amber)',
+    cardClass: 'stat-late',
   },
   absent: {
     icon: 'X',
     iconBg: 'var(--red-soft)',
     iconColor: 'var(--red)',
+    cardClass: 'stat-absent',
   },
   total: {
     icon: 'Users',
     iconBg: 'color-mix(in srgb, var(--blue) 12%, transparent)',
     iconColor: 'var(--blue)',
+    cardClass: 'stat-total',
   },
+}
+
+// ── Skeleton stat card ───────────────────────────────────────────────────────
+function SkeletonStatCard() {
+  return (
+    <div className="fm-card" style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div className="fm-skeleton" style={{ width: 80, height: 11 }} />
+        <div className="fm-skeleton" style={{ width: 40, height: 40, borderRadius: 11 }} />
+      </div>
+      <div className="fm-skeleton" style={{ width: 70, height: 36, marginBottom: 8 }} />
+      <div className="fm-skeleton" style={{ width: 110, height: 10 }} />
+    </div>
+  )
 }
 
 // ── Stat card ────────────────────────────────────────────────────────────────
@@ -81,7 +99,7 @@ function StatCard({ eyebrow, num, sub, delta, dir = 'up', metaKey, sparkValues }
   const meta = STAT_META[metaKey] ?? STAT_META.total
 
   return (
-    <div className="fm-card lift" style={{ flex: 1, minWidth: 0 }}>
+    <div className={`fm-card lift ${meta.cardClass}`} style={{ flex: 1, minWidth: 0 }}>
       {/* Top row: label + icon */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
         <div className="fm-eyebrow" style={{ paddingTop: 2, letterSpacing: '0.11em' }}>{eyebrow}</div>
@@ -184,38 +202,49 @@ export function Dashboard({ layout = 'sidebar' }) {
           </div>
 
           {/* ── Stats row ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
-            <StatCard
-              eyebrow="Present today"
-              num={stats.present ?? '—'}
-              sub={stats.total ? `${stats.rate ?? 0}% of enrolled` : 'Loading…'}
-              metaKey="present"
-              sparkValues={sparkValues}
-            />
-            <StatCard
-              eyebrow="Late arrivals"
-              num={stats.late ?? '—'}
-              sub="marked late today"
-              dir="dn"
-              metaKey="late"
-            />
-            <StatCard
-              eyebrow="Absent"
-              num={stats.absent ?? '—'}
-              sub="not checked in"
-              dir="dn"
-              metaKey="absent"
-            />
-            <StatCard
-              eyebrow="Total enrolled"
-              num={stats.total ?? '—'}
-              sub="active students"
-              metaKey="total"
-            />
+          <div className="fm-stats-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
+            {!data ? (
+              <>
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+              </>
+            ) : (
+              <>
+                <StatCard
+                  eyebrow="Present today"
+                  num={stats.present ?? '—'}
+                  sub={stats.total ? `${stats.rate ?? 0}% of enrolled` : 'No data yet'}
+                  metaKey="present"
+                  sparkValues={sparkValues}
+                />
+                <StatCard
+                  eyebrow="Late arrivals"
+                  num={stats.late ?? '—'}
+                  sub="marked late today"
+                  dir="dn"
+                  metaKey="late"
+                />
+                <StatCard
+                  eyebrow="Absent"
+                  num={stats.absent ?? '—'}
+                  sub="not checked in"
+                  dir="dn"
+                  metaKey="absent"
+                />
+                <StatCard
+                  eyebrow="Total enrolled"
+                  num={stats.total ?? '—'}
+                  sub="active students"
+                  metaKey="total"
+                />
+              </>
+            )}
           </div>
 
           {/* ── Charts row ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 248px', gap: 16, marginBottom: 16 }}>
+          <div className="fm-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 248px', gap: 16, marginBottom: 16 }}>
 
             {/* Weekly bar chart */}
             <div className="fm-card" style={{ gridColumn: '1' }}>
@@ -349,7 +378,7 @@ export function Dashboard({ layout = 'sidebar' }) {
           </div>
 
           {/* ── Recent check-ins + alerts ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 288px', gap: 16 }}>
+          <div className="fm-bottom-row" style={{ display: 'grid', gridTemplateColumns: '1fr 288px', gap: 16 }}>
 
             {/* Recent table */}
             <div className="fm-card" style={{ padding: 0 }}>
@@ -376,6 +405,19 @@ export function Dashboard({ layout = 'sidebar' }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {recent.length === 0 && (
+                    <tr>
+                      <td colSpan={5}>
+                        <div className="fm-empty">
+                          <div className="fm-empty-icon">
+                            <I.Log size={22} />
+                          </div>
+                          <div className="fm-empty-title">No check-ins yet</div>
+                          <div className="fm-empty-sub">Attendance entries will appear here in real time as students check in.</div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {recent.slice(0, 7).map(r => {
                     const hue = (parseInt((r.studentCode ?? '').replace(/\D/g, '')) * 37) % 360
                     return (
@@ -428,9 +470,18 @@ export function Dashboard({ layout = 'sidebar' }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {alerts.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                    <div style={{ color: 'var(--fg-4)', fontSize: 24, marginBottom: 8 }}>✓</div>
-                    <div className="fm-muted" style={{ fontSize: 12 }}>No alerts today</div>
+                  <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: 12,
+                      background: 'var(--green-soft)',
+                      display: 'grid', placeItems: 'center',
+                      margin: '0 auto 10px',
+                      color: 'var(--green)',
+                    }}>
+                      <I.Check size={20} />
+                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--fg)', marginBottom: 4 }}>All clear</div>
+                    <div className="fm-muted" style={{ fontSize: 11.5 }}>No alerts today</div>
                   </div>
                 ) : alerts.map((n, i) => {
                   const color = n.type === 'absent' ? 'var(--red)'

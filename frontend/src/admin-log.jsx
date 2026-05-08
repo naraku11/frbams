@@ -138,9 +138,26 @@ function AttendanceLog() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} style={{padding:32, textAlign:'center', color:'var(--fg-3)'}}>Loading…</td></tr>
+                  <tr>
+                    <td colSpan={10}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--fg-3)' }}>
+                        <div className="fm-spinner sm" />
+                        <span style={{ fontSize: 13 }}>Loading records…</span>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={10} style={{padding:32, textAlign:'center', color:'var(--fg-3)'}}>No records for this date.</td></tr>
+                  <tr>
+                    <td colSpan={10}>
+                      <div className="fm-empty">
+                        <div className="fm-empty-icon">
+                          <I.Log size={22} />
+                        </div>
+                        <div className="fm-empty-title">No records found</div>
+                        <div className="fm-empty-sub">No attendance entries match the selected date and filters.</div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : rows.map((r) => (
                   <tr key={r.recId}>
                     <td style={{paddingLeft:20}}><input type="checkbox" /></td>
@@ -182,22 +199,33 @@ function AttendanceLog() {
                     </td>
                     <td>
                       <div style={{position:'relative'}}>
-                        <span
-                          className="fm-muted"
-                          style={{cursor:'pointer', padding:'2px 6px', opacity: overriding === r.recId ? 0.4 : 1}}
+                        <button
+                          className="fm-meatball"
+                          style={{ opacity: overriding === r.recId ? 0.4 : 1 }}
                           onClick={e => { e.stopPropagation(); setMenu(menu === r.recId ? null : r.recId) }}
-                        >⋯</span>
+                        >⋯</button>
                         {menu === r.recId && (
                           <div style={{
-                            position:'absolute', right:0, top:'100%', zIndex:20,
+                            position:'absolute', right:0, top:'calc(100% + 4px)', zIndex:20,
                             background:'var(--card)', border:'1px solid var(--line)',
-                            borderRadius:8, boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
-                            minWidth:140, padding:'4px 0',
+                            borderRadius: 10, boxShadow:'var(--shadow-lg)',
+                            minWidth:148, padding:'5px 0',
                           }}>
+                            <div style={{ padding: '6px 14px 4px', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-4)', fontWeight: 700 }}>
+                              Override status
+                            </div>
                             {['present','late','absent','excused'].map(s => (
                               <div
                                 key={s}
-                                style={{padding:'8px 14px', fontSize:12.5, cursor:'pointer'}}
+                                style={{
+                                  padding:'8px 14px', fontSize:12.5, cursor:'pointer',
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  color: s === 'absent' ? 'var(--red)' : s === 'late' ? 'var(--amber)' : s === 'present' ? 'var(--accent)' : 'var(--fg-3)',
+                                  fontWeight: 500,
+                                  transition: 'background 0.1s',
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--line-2)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                 onClick={e => {
                                   e.stopPropagation()
                                   setMenu(null)
@@ -206,7 +234,10 @@ function AttendanceLog() {
                                     .then(() => setRows(prev => prev.map(x => x.recId === r.recId ? {...x, status: s} : x)))
                                     .finally(() => setOverriding(null))
                                 }}
-                              >Mark {s}</div>
+                              >
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+                                Mark {s}
+                              </div>
                             ))}
                           </div>
                         )}

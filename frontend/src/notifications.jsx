@@ -81,8 +81,12 @@ function NotificationsScreen() {
 
           <div className="fm-card" style={{ padding: 0 }}>
             {items.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>
-                No notifications.
+              <div className="fm-empty">
+                <div className="fm-empty-icon">
+                  <I.Bell size={22} />
+                </div>
+                <div className="fm-empty-title">No notifications</div>
+                <div className="fm-empty-sub">You're all caught up. Alerts will appear here as attendance events occur.</div>
               </div>
             ) : items.map((n, i) => {
               const m   = META[n.type] ?? META.system
@@ -92,11 +96,17 @@ function NotificationsScreen() {
                   key={i}
                   style={{
                     display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14,
-                    alignItems: 'center', padding: '16px 20px',
+                    alignItems: 'center', padding: '14px 20px',
                     borderBottom: i < items.length - 1 ? '1px solid var(--line-2)' : 'none',
-                    background: isRead ? 'transparent' : 'var(--card)',
+                    background: isRead
+                      ? 'transparent'
+                      : `color-mix(in srgb, ${m.color} 4%, var(--card))`,
                     cursor: 'pointer',
+                    transition: 'background 0.12s',
+                    borderLeft: `3px solid ${isRead ? 'transparent' : m.color}`,
                   }}
+                  onMouseEnter={e => { if (isRead) e.currentTarget.style.background = 'var(--line-2)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isRead ? 'transparent' : `color-mix(in srgb, ${m.color} 4%, var(--card))` }}
                   onClick={() => setRead(prev => new Set([...prev, i]))}
                 >
                   <div style={{

@@ -4,6 +4,21 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { I } from './icons'
 import { api } from './api'
 
+// ── Mobile sidebar context ───────────────────────────────────────────────────
+export const SidebarCtx = React.createContext({ open: false, setOpen: () => {} })
+
+export function SidebarProvider({ children }) {
+  const [open, setOpen] = React.useState(false)
+  // Close on route change
+  const location = useLocation()
+  React.useEffect(() => setOpen(false), [location.pathname])
+  return (
+    <SidebarCtx.Provider value={{ open, setOpen }}>
+      {children}
+    </SidebarCtx.Provider>
+  )
+}
+
 const NAV_DEFS = [
   { label: 'Dashboard',      icon: 'Home',    to: '/dashboard' },
   { label: 'Attendance Log', icon: 'Log',     to: '/log',      badgeKey: 'todayCheckins' },
@@ -74,6 +89,7 @@ function readBranding() {
 
 export function Sidebar({ layout = 'sidebar' }) {
   const navigate  = useNavigate()
+  const { open, setOpen } = React.useContext(SidebarCtx)
   const user      = (() => { try { return JSON.parse(localStorage.getItem('frbams_user') || '{}') } catch { return {} } })()
   const initials  = user.initials ?? 'DW'
   const name      = user.name ?? 'Dr. Wexler'
@@ -125,7 +141,16 @@ export function Sidebar({ layout = 'sidebar' }) {
   }
 
   return (
-    <div className="fm-side">
+    <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fm-side-overlay"
+          onClick={() => setOpen(false)}
+          style={{ zIndex: 98 }}
+        />
+      )}
+    <div className={`fm-side${open ? ' open' : ''}`} style={{ zIndex: 99 }}>
       {/* Brand */}
       <div className="fm-side-top">
         <div className="fm-brand">
@@ -194,12 +219,14 @@ export function Sidebar({ layout = 'sidebar' }) {
         </button>
       </div>
     </div>
+    </>
   )
 }
 
 export function TopBar({ right }) {
   const navigate  = useNavigate()
   const location  = useLocation()
+  const { setOpen } = React.useContext(SidebarCtx)
   const [q, setQ] = React.useState('')
 
   // Derive current page label for breadcrumb
@@ -207,13 +234,22 @@ export function TopBar({ right }) {
 
   return (
     <div className="fm-topbar">
+      {/* Mobile hamburger */}
+      <button
+        className="fm-hamburger"
+        onClick={() => setOpen(o => !o)}
+        aria-label="Toggle navigation"
+      >
+        <span /><span /><span />
+      </button>
+
       {/* Left: breadcrumb */}
       <div className="fm-topbar-title">
         <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>FRBAMS</span>
         {pageLabel && (
           <>
             <span className="fm-topbar-sep">/</span>
-            <span className="fm-topbar-crumb">{pageLabel}</span>
+            <span className="fm-topbar-crumb-chip">{pageLabel}</span>
           </>
         )}
       </div>
