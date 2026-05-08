@@ -951,30 +951,24 @@ function AssetUploadField({ label, value, onChange, onUpload, uploading }) {
 
   return (
     <div>
-      <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 6 }}>{label}</div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         {safeValue && !imgBroken
-          ? <img src={safeValue} alt={label} onError={() => setImgBroken(true)} style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--bg)' }} />
-          : <div style={{ width: 48, height: 48, borderRadius: 8, border: '1px solid var(--line)', background: 'var(--line-2)', display: 'grid', placeItems: 'center', fontSize: 11, color: 'var(--fg-3)' }}>none</div>
+          ? <img src={safeValue} alt={label} onError={() => setImgBroken(true)}
+              style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg)', flexShrink: 0 }} />
+          : <div style={{ width: 56, height: 56, borderRadius: 10, border: '1px dashed var(--line)', background: 'var(--line-2)', display: 'grid', placeItems: 'center', fontSize: 10, color: 'var(--fg-3)', flexShrink: 0, letterSpacing: '0.02em' }}>
+              No image
+            </div>
         }
-        <div style={{ flex: 1 }}>
-          <input
-            className="fm-input"
-            placeholder="https://…"
-            value={safeValue}
-            onChange={e => onChange(e.target.value)}
-            style={{ marginBottom: 6 }}
-          />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="fm-btn" style={{ fontSize: 12 }}
-              onClick={() => ref.current?.click()}
-              disabled={uploading}>
-              {uploading ? 'Uploading…' : 'Upload file'}
-            </button>
-            {safeValue && (
-              <button className="fm-btn" style={{ fontSize: 12 }} onClick={() => { onChange(''); setImgBroken(false) }}>Remove</button>
-            )}
-          </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="fm-btn" style={{ fontSize: 12 }}
+            onClick={() => ref.current?.click()}
+            disabled={uploading}>
+            {uploading ? 'Uploading…' : safeValue ? 'Replace' : 'Upload file'}
+          </button>
+          {safeValue && (
+            <button className="fm-btn" style={{ fontSize: 12 }} onClick={() => { onChange(''); setImgBroken(false) }}>Remove</button>
+          )}
         </div>
       </div>
       <input ref={ref} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon" style={{ display: 'none' }}
